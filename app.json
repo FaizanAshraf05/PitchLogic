@@ -1,0 +1,37 @@
+{
+  "expo": {
+    "name": "PitchLogic",
+    "slug": "pitchlogic",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0a0e0a"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.pitchlogic.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0a0e0a"
+      },
+      "edgeToEdgeEnabled": true,
+      "package": "com.pitchlogic.app"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "9b9e0989-1aa1-4d76-88b2-36f6ab52cc4f"
+      }
+    },
+    "owner": "blitzahh"
+  }
+}
