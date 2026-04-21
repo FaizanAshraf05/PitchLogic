@@ -7,6 +7,8 @@ import {
   StatusBar,
   BackHandler,
   Alert,
+  Image,
+  Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors, Typography, Spacing, BorderRadius } from '../theme';
@@ -40,6 +42,14 @@ export function TitleScreen({ navigation }: TitleScreenProps) {
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <StatusBar barStyle="light-content" backgroundColor={Colors.bg} />
+
+      <View style={styles.backgroundWrapper}>
+        <Image
+          source={require('../../assets/Rectangle 5.png')}
+          style={styles.backgroundImage}
+          resizeMode="cover"
+        />
+      </View>
 
       <View style={styles.titleSection}>
         <Text style={styles.titleTop}>PITCH</Text>
@@ -77,8 +87,10 @@ export function TitleScreen({ navigation }: TitleScreenProps) {
           <Text style={styles.quitButtonText}>Quit</Text>
         </TouchableOpacity>
       </View>
-
-      <Text style={styles.version}>v1.0.0</Text>
+      <Text style={styles.Author}>by</Text>
+      <Text style={styles.Author}>Faizan</Text>
+      <Text style={styles.Author}>Abdullah</Text>
+      <Text style={styles.Author}>Ahmad Ibrahim</Text>
     </SafeAreaView>
   );
 }
@@ -89,6 +101,14 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.bg,
     justifyContent: 'space-between',
     alignItems: 'center',
+  },
+  backgroundWrapper: {
+    ...StyleSheet.absoluteFillObject,
+    opacity: 0.12,
+  },
+  backgroundImage: {
+    width: Dimensions.get('window').width,
+    height: Dimensions.get('window').height,
   },
   titleSection: {
     flex: 1,
@@ -167,7 +187,7 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
     fontWeight: Typography.fontWeight.medium,
   },
-  version: {
+  Author: {
     fontSize: Typography.fontSize.xs,
     color: Colors.textMuted,
     paddingBottom: Spacing.sm,
