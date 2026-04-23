@@ -256,7 +256,36 @@ app.get('/api/teams/:id/next-match', async (req, res) => {
     } catch (err) { res.status(500).send("Server Error"); }
 });
 
-// UC-11: Start New Game (Simplified Fixtures)
+app.get('/api/teams/:id/schedule', async (req, res) => {
+    try {
+        const pool = await poolPromise;
+        const result = await pool.request()
+            .input('teamId', sql.Int, req.params.id)
+            .query(`
+                SELECT 
+                    m.matchID, 
+                    m.matchDate, 
+                    m.homeScore, 
+                    m.awayScore, 
+                    m.isSimulated,
+                    m.homeTeamID,
+                    ht.name AS homeTeamName,
+                    m.awayTeamID,
+                    at.name AS awayTeamName
+                FROM MatchFixture m
+                JOIN Team ht ON m.homeTeamID = ht.teamID
+                JOIN Team at ON m.awayTeamID = at.teamID
+                WHERE m.homeTeamID = @teamId OR m.awayTeamID = @teamId
+                ORDER BY m.matchDate ASC
+            `);
+        res.json(result.recordset);
+    } catch (err) {
+        console.error("Schedule Error:", err);
+        res.status(500).send("Server Error: " + err.message);
+    }
+});
+
+//Start New Game
 app.post('/api/game/new', async (req, res) => {
     try {
         const { managerName, teamId } = req.body;
@@ -265,23 +294,32 @@ app.post('/api/game/new', async (req, res) => {
         await transaction.begin();
 
         try {
-            // 1. Create Manager
-            const managerResult = await transaction.request()
+            // create maanger
+            const checkManager = await transaction.request()
                 .input('managerName', sql.VarChar, managerName)
-                .query(`
-                    INSERT INTO ClubManager (username, isHuman) 
-                    OUTPUT Inserted.managerID 
-                    VALUES (@managerName, 1)
-                `);
-            const newManagerId = managerResult.recordset[0].managerID;
+                .query(`SELECT managerID FROM ClubManager WHERE username = @managerName`);
 
-            // 2. Assign Team
+            let newManagerId;
+
+            if (checkManager.recordset.length > 0) {
+                newManagerId = checkManager.recordset[0].managerID;
+                console.log(`Manager ${managerName} returning to the game.`);
+            } else {
+                const managerResult = await transaction.request()
+                    .input('managerName', sql.VarChar, managerName)
+                    .query(`
+                        INSERT INTO ClubManager (username, isHuman) 
+                        VALUES (@managerName, 1);
+                        SELECT SCOPE_IDENTITY() AS managerID;
+                    `);
+                newManagerId = managerResult.recordset[0].managerID;
+                console.log(`New Manager ${managerName} created.`);
+            }
             await transaction.request()
                 .input('managerId', sql.Int, newManagerId)
                 .input('teamId', sql.Int, teamId)
                 .query(`UPDATE Team SET managerID = @managerId WHERE teamID = @teamId`);
 
-            // 3. Simplified Fixture Generator (e.g., 5 Weeks of random matchups)
             await transaction.request().query(`DELETE FROM MatchFixture`);
 
             const teamsResult = await transaction.request().query(`SELECT teamID FROM Team`);
@@ -289,18 +327,15 @@ app.post('/api/game/new', async (req, res) => {
 
             let matchInserts = [];
             let seasonStartDate = new Date('2026-08-15');
-            const weeksToSimulate = 5; // Change this to whatever number of weeks you want
+            const weeksToSimulate = 5;
 
-            // Loop for a set number of weeks
             for (let week = 0; week < weeksToSimulate; week++) {
                 let matchDateObj = new Date(seasonStartDate);
                 matchDateObj.setDate(seasonStartDate.getDate() + (week * 7));
                 let sqlDate = matchDateObj.toISOString().split('T')[0];
 
-                // Shuffle the teams randomly for this week
                 let shuffledTeams = [...teams].sort(() => 0.5 - Math.random());
 
-                // Pair them up 2 by 2
                 for (let i = 0; i < shuffledTeams.length - 1; i += 2) {
                     const home = shuffledTeams[i];
                     const away = shuffledTeams[i + 1];
