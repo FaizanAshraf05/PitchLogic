@@ -223,13 +223,22 @@ app.get('/api/transfers/market/all', async (req, res) => {
     try {
         const pool = await poolPromise;
         const result = await pool.request().query(`
-            SELECT p.playerID, p.name, p.position, p.overallRating, p.marketValue, p.age, ISNULL(t.name, 'Free Agent') AS currentTeam
+            SELECT 
+                p.playerID, 
+                p.name, 
+                p.position, 
+                p.overallRating, 
+                p.marketValue, 
+                ISNULL(t.name, 'Free Agent') AS currentTeam
             FROM Player p
             LEFT JOIN Team t ON p.teamID = t.teamID
             ORDER BY p.overallRating DESC
         `);
         res.json(result.recordset);
-    } catch (err) { res.status(500).send("Server Error"); }
+    } catch (err) {
+        console.error("Transfer Market Error:", err);
+        res.status(500).send("Server Error: " + err.message);
+    }
 });
 
 app.get('/api/teams/:id/next-match', async (req, res) => {
