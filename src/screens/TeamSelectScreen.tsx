@@ -7,12 +7,14 @@ import {
   StatusBar,
   Image,
   Dimensions,
+  Platform,
   TextInput,
   ScrollView,
   Alert,
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Shadow } from 'react-native-shadow-2';
 import { Colors, Typography, Spacing, BorderRadius } from '../theme';
 
 const { width } = Dimensions.get('window');
@@ -203,13 +205,22 @@ export function TeamSelectScreen({ navigation }: TeamSelectScreenProps) {
           />
         </View>
 
-        <TouchableOpacity
-          style={styles.advanceButton}
-          activeOpacity={0.8}
-          onPress={handleAdvance}
+        <Shadow
+          distance={20}
+          startColor={'rgba(29, 185, 84, 0.4)'}
+          endColor={'rgba(29, 185, 84, 0)'}
+          offset={[0, 4]}
+          style={{ width: '100%' }}
+          containerStyle={{ width: '100%' }}
         >
-          <Text style={styles.advanceButtonText}>ADVANCE</Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.advanceButton}
+            activeOpacity={0.8}
+            onPress={handleAdvance}
+          >
+            <Text style={styles.advanceButtonText}>ADVANCE</Text>
+          </TouchableOpacity>
+        </Shadow>
 
         <View style={{ height: Spacing.xl }} />
       </ScrollView>
@@ -306,12 +317,7 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.lg,
     paddingVertical: Spacing.base,
     alignItems: 'center',
-    opacity: 0.85,
-    shadowColor: '#1DB954',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 1,
-    shadowRadius: 33.1,
-    elevation: 8,
+    width: '100%',
   },
   advanceButtonText: {
     fontSize: Typography.fontSize.lg,
