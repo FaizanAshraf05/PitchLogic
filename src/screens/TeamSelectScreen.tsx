@@ -307,6 +307,11 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.base,
     alignItems: 'center',
     opacity: 0.85,
+    shadowColor: '#1DB954',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 1,
+    shadowRadius: 33.1,
+    elevation: 8,
   },
   advanceButtonText: {
     fontSize: Typography.fontSize.lg,
