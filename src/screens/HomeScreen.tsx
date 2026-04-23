@@ -246,7 +246,7 @@ export function HomeScreen() {
             endColor={'rgba(29, 185, 84, 0)'}
             offset={[0, 4]}
             style={{ width: '100%' }}
-            containerStyle={{ width: '100%', paddingHorizontal: Spacing.xl }}
+            containerStyle={{ width: '100%' }}
           >
             <TouchableOpacity
               style={styles.advanceButton}
@@ -311,12 +311,11 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(30, 30, 30, 0.7)',
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: 'rgba(29, 185, 84, 0.3)', // subtle green border
+    borderColor: 'rgba(29, 185, 84, 0.3)',
     paddingVertical: 14,
     paddingHorizontal: 40,
     alignItems: 'center',
     minWidth: '60%',
-    // Removed shadow/elevation properties to prevent black background bug on Android
   },
   budgetTitle: {
     color: '#FFFFFF',
@@ -337,9 +336,9 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   actionButton: {
-    width: (width - Spacing.xl * 2 - 30) / 3, // 3 columns, minus padding and gaps
-    aspectRatio: 1.2, // Rectangular rather than square makes it smaller vertically
-    backgroundColor: '#357a38', // Green matching image
+    width: (width - Spacing.xl * 2 - 30) / 3,
+    aspectRatio: 1.2,
+    backgroundColor: Colors.green,
     borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
@@ -363,7 +362,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   matchCard: {
-    backgroundColor: '#2e6b32', // Dark green card
+    backgroundColor: Colors.green,
     borderRadius: 20,
     padding: 16,
     width: '85%',
@@ -393,7 +392,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: 'rgba(0,0,0,0.4)', // Circle behind logo
+    backgroundColor: 'rgba(0,0,0,0.4)',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 8,
@@ -424,7 +423,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.6)',
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#e68a00', // Orange border
+    borderColor: '#e68a00',
     paddingVertical: 6,
     paddingHorizontal: 16,
   },
