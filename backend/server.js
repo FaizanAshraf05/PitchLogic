@@ -256,15 +256,16 @@ app.get('/api/teams/:id/next-match', async (req, res) => {
     } catch (err) { res.status(500).send("Server Error"); }
 });
 
+// UC-11: Start New Game (Simplified Fixtures)
 app.post('/api/game/new', async (req, res) => {
     try {
         const { managerName, teamId } = req.body;
         const pool = await poolPromise;
-
         const transaction = new sql.Transaction(pool);
         await transaction.begin();
 
         try {
+            // 1. Create Manager
             const managerResult = await transaction.request()
                 .input('managerName', sql.VarChar, managerName)
                 .query(`
@@ -274,36 +275,37 @@ app.post('/api/game/new', async (req, res) => {
                 `);
             const newManagerId = managerResult.recordset[0].managerID;
 
+            // 2. Assign Team
             await transaction.request()
                 .input('managerId', sql.Int, newManagerId)
                 .input('teamId', sql.Int, teamId)
                 .query(`UPDATE Team SET managerID = @managerId WHERE teamID = @teamId`);
+
+            // 3. Simplified Fixture Generator (e.g., 5 Weeks of random matchups)
             await transaction.request().query(`DELETE FROM MatchFixture`);
 
             const teamsResult = await transaction.request().query(`SELECT teamID FROM Team`);
             let teams = teamsResult.recordset.map(t => t.teamID);
 
-            if (teams.length % 2 !== 0) teams.push(null);
-
-            const totalRounds = teams.length - 1;
-            const matchesPerRound = teams.length / 2;
             let matchInserts = [];
             let seasonStartDate = new Date('2026-08-15');
+            const weeksToSimulate = 5; // Change this to whatever number of weeks you want
 
-            for (let round = 0; round < totalRounds; round++) {
+            // Loop for a set number of weeks
+            for (let week = 0; week < weeksToSimulate; week++) {
                 let matchDateObj = new Date(seasonStartDate);
-                matchDateObj.setDate(seasonStartDate.getDate() + (round * 7));
+                matchDateObj.setDate(seasonStartDate.getDate() + (week * 7));
                 let sqlDate = matchDateObj.toISOString().split('T')[0];
 
-                for (let match = 0; match < matchesPerRound; match++) {
-                    const home = teams[match];
-                    const away = teams[teams.length - 1 - match];
+                // Shuffle the teams randomly for this week
+                let shuffledTeams = [...teams].sort(() => 0.5 - Math.random());
 
-                    if (home !== null && away !== null) {
-                        matchInserts.push(`('${sqlDate}', ${home}, ${away}, 0, 0, 0, 0, 0)`);
-                    }
+                // Pair them up 2 by 2
+                for (let i = 0; i < shuffledTeams.length - 1; i += 2) {
+                    const home = shuffledTeams[i];
+                    const away = shuffledTeams[i + 1];
+                    matchInserts.push(`('${sqlDate}', ${home}, ${away}, 0, 0, 0, 0, 0)`);
                 }
-                teams.splice(1, 0, teams.pop());
             }
 
             if (matchInserts.length > 0) {
@@ -313,11 +315,11 @@ app.post('/api/game/new', async (req, res) => {
                 `;
                 await transaction.request().query(bulkInsertQuery);
             }
+
             await transaction.commit();
-            res.json({ message: "Game Started & Full Season Schedule Generated!", managerId: newManagerId });
+            res.json({ message: "Game Started & Simple Schedule Generated!", managerId: newManagerId });
 
         } catch (txErr) {
-            // If anything failed
             await transaction.rollback();
             throw txErr;
         }
@@ -326,7 +328,6 @@ app.post('/api/game/new', async (req, res) => {
         res.status(500).send("Failed to start game: " + err.message);
     }
 });
-
 const PORT = 3000;
 app.listen(PORT, () => {
     console.log(`Pitch Logic API running on http://localhost:${PORT}`);
