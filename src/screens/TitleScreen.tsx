@@ -10,8 +10,12 @@ import {
   Image,
   Dimensions,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Colors, Typography, Spacing, BorderRadius } from '../theme';
+import {
+  SafeAreaView
+} from 'react-native-safe-area-context';
+import {
+  Colors, Typography, Spacing, BorderRadius
+} from '../theme';
 
 interface TitleScreenProps {
   navigation: any;
@@ -20,7 +24,7 @@ interface TitleScreenProps {
 export function TitleScreen({ navigation }: TitleScreenProps) {
 
   const handleNewGame = () => {
-    navigation.navigate('Main');
+    navigation.navigate('TeamSelect');
   };
 
   const handleLoadGame = () => {

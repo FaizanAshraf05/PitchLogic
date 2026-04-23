@@ -4,6 +4,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Colors } from '../theme';
 import { TitleScreen } from '../screens/TitleScreen';
+import { TeamSelectScreen } from '../screens/TeamSelectScreen';
 import { HomeScreen } from '../screens/HomeScreen';
 import { SquadScreen } from '../screens/SquadScreen';
 import { MatchScreen } from '../screens/MatchScreen';
@@ -13,7 +14,8 @@ import { TabBar } from '../components/TabBar';
 
 export type RootStackParamList = {
   Title: undefined;
-  Main: undefined;
+  TeamSelect: undefined;
+  Main: { teamId: string; managerName: string } | undefined;
 };
 
 export type MainTabParamList = {
@@ -68,6 +70,7 @@ export function AppNavigator() {
         }}
       >
         <Stack.Screen name="Title" component={TitleScreen} />
+        <Stack.Screen name="TeamSelect" component={TeamSelectScreen} />
         <Stack.Screen name="Main" component={MainTabs} />
       </Stack.Navigator>
     </NavigationContainer>
