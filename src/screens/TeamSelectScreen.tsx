@@ -72,6 +72,7 @@ export function TeamSelectScreen({ navigation }: TeamSelectScreenProps) {
   const [teams, setTeams] = useState<TeamFromAPI[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isStarting, setIsStarting] = useState(false);
 
   useEffect(() => {
     fetchTeams();
@@ -92,7 +93,7 @@ export function TeamSelectScreen({ navigation }: TeamSelectScreenProps) {
     }
   };
 
-  const handleAdvance = () => {
+  const handleAdvance = async () => {
     if (!selectedTeam) {
       Alert.alert('Select a Team', 'Please select a team to manage.');
       return;
@@ -101,12 +102,35 @@ export function TeamSelectScreen({ navigation }: TeamSelectScreenProps) {
       Alert.alert('Enter Your Name', 'Please enter your manager name.');
       return;
     }
-    const team = teams.find((t) => t.teamID === selectedTeam);
-    navigation.navigate('Main', {
-      teamId: selectedTeam,
-      teamName: team?.teamName,
-      managerName: managerName.trim(),
-    });
+
+    setIsStarting(true);
+    try {
+      const response = await fetch('https://obliged-preamble-amplifier.ngrok-free.dev/api/game/new', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          managerName: managerName.trim(),
+          teamId: selectedTeam,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to start new game');
+      }
+
+      const team = teams.find((t) => t.teamID === selectedTeam);
+      navigation.navigate('Main', {
+        teamId: selectedTeam,
+        teamName: team?.teamName,
+        managerName: managerName.trim(),
+      });
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Could not start new game.');
+    } finally {
+      setIsStarting(false);
+    }
   };
 
   const renderTeamGrid = () => {
@@ -214,11 +238,16 @@ export function TeamSelectScreen({ navigation }: TeamSelectScreenProps) {
           containerStyle={{ width: '100%' }}
         >
           <TouchableOpacity
-            style={styles.advanceButton}
+            style={[styles.advanceButton, isStarting && { opacity: 0.7 }]}
             activeOpacity={0.8}
             onPress={handleAdvance}
+            disabled={isStarting}
           >
-            <Text style={styles.advanceButtonText}>ADVANCE</Text>
+            {isStarting ? (
+              <ActivityIndicator color={Colors.textOnPrimary} />
+            ) : (
+              <Text style={styles.advanceButtonText}>ADVANCE</Text>
+            )}
           </TouchableOpacity>
         </Shadow>
 

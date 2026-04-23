@@ -18,6 +18,10 @@ const TAB_ICONS: Record<string, string> = {
 };
 
 export function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
+  if (state.routes[state.index].name === 'Home') {
+    return null;
+  }
+
   return (
     <View style={styles.container}>
       <View style={styles.tabBar}>
