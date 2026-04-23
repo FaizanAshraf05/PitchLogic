@@ -40,9 +40,6 @@ yarn-error.*
 /ios
 /android
 
-# Backend
-backend/node_modules/
-backend/dbConfig.js
 
 # Database datasets
 *.csv
