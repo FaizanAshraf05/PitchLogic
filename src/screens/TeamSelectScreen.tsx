@@ -27,7 +27,7 @@ const API_URL = 'https://obliged-preamble-amplifier.ngrok-free.dev/api/teams';
 
 interface TeamFromAPI {
   teamID: number;
-  name: string;
+  teamName: string;
   transferBudget: number;
   wageBudget: number;
   formation: string;
@@ -104,7 +104,7 @@ export function TeamSelectScreen({ navigation }: TeamSelectScreenProps) {
     const team = teams.find((t) => t.teamID === selectedTeam);
     navigation.navigate('Main', {
       teamId: selectedTeam,
-      teamName: team?.name,
+      teamName: team?.teamName,
       managerName: managerName.trim(),
     });
   };
@@ -134,7 +134,7 @@ export function TeamSelectScreen({ navigation }: TeamSelectScreenProps) {
       <View style={styles.teamGrid}>
         {teams.map((team) => {
           const isSelected = selectedTeam === team.teamID;
-          const logo = TEAM_LOGOS[team.name];
+          const logo = TEAM_LOGOS[team.teamName];
           return (
             <TouchableOpacity
               key={team.teamID}
@@ -154,7 +154,7 @@ export function TeamSelectScreen({ navigation }: TeamSelectScreenProps) {
               ) : (
                 <View style={styles.logoFallback}>
                   <Text style={styles.logoFallbackText}>
-                    {team.name.charAt(0)}
+                    {team.teamName ? team.teamName.charAt(0) : '?'}
                   </Text>
                 </View>
               )}
