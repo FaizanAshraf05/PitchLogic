@@ -10,12 +10,14 @@ import { SquadScreen } from '../screens/SquadScreen';
 import { MatchScreen } from '../screens/MatchScreen';
 import { LeagueScreen } from '../screens/LeagueScreen';
 import { MoreScreen } from '../screens/MoreScreen';
+import { ScheduleScreen } from '../screens/ScheduleScreen';
 import { TabBar } from '../components/TabBar';
 
 export type RootStackParamList = {
   Title: undefined;
   TeamSelect: undefined;
   Main: { teamId: string; managerName: string } | undefined;
+  Schedule: { teamId: number } | undefined;
 };
 
 export type MainTabParamList = {
@@ -72,6 +74,7 @@ export function AppNavigator() {
         <Stack.Screen name="Title" component={TitleScreen} />
         <Stack.Screen name="TeamSelect" component={TeamSelectScreen} />
         <Stack.Screen name="Main" component={MainTabs} />
+        <Stack.Screen name="Schedule" component={ScheduleScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

@@ -224,7 +224,7 @@ export function HomeScreen() {
               key={action.id}
               style={styles.actionButton}
               activeOpacity={0.8}
-              onPress={() => action.route && navigation.navigate(action.route)}
+              onPress={() => action.route && navigation.navigate(action.route, { teamId })}
             >
               <MaterialCommunityIcons name={action.icon as any} size={28} color="#000" />
               <Text style={styles.actionText}>{action.title}</Text>
@@ -271,11 +271,11 @@ const styles = StyleSheet.create({
   },
   backgroundWrapper: {
     ...StyleSheet.absoluteFillObject,
+    opacity: 0.12,
   },
   backgroundImage: {
     width: width,
     height: height,
-    opacity: 0.3,
   },
   overlay: {
     ...StyleSheet.absoluteFillObject,

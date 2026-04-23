@@ -327,7 +327,7 @@ app.post('/api/game/new', async (req, res) => {
 
             let matchInserts = [];
             let seasonStartDate = new Date('2026-08-15');
-            const weeksToSimulate = 5;
+            const weeksToSimulate = 38;
 
             for (let week = 0; week < weeksToSimulate; week++) {
                 let matchDateObj = new Date(seasonStartDate);
