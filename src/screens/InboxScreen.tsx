@@ -89,7 +89,7 @@ export function InboxScreen() {
       const data = await res.json();
       Alert.alert(
         action === 'accept' ? 'Transfer Complete' :
-        action === 'reject' ? 'Offer Rejected' : 'Counter Response',
+          action === 'reject' ? 'Offer Rejected' : 'Counter Response',
         data.message
       );
 
@@ -339,7 +339,7 @@ const styles = StyleSheet.create({
     color: Colors.green,
     fontSize: 16,
     fontWeight: 'bold',
-    marginLeft: 8,
+    marginLeft: 0,
   },
   playerInfoRow: {
     flexDirection: 'row',
@@ -354,7 +354,7 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontSize: 18,
     fontWeight: 'bold',
-    marginBottom: 6,
+    marginBottom: 2,
   },
   tagRow: {
     flexDirection: 'row',
