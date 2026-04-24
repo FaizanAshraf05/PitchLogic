@@ -174,14 +174,48 @@ app.put('/api/teams/:id/tactics', async (req, res) => {
     } catch (err) { res.status(500).send("Server Error"); }
 });
 
-// UC-04
+// UC-04 — Training: Focus on a position. After 3 matches the boost is applied.
 app.put('/api/teams/:id/training', async (req, res) => {
     try {
         const teamId = parseInt(req.params.id);
-        req.gameState.players.forEach(p => {
-            if (p.teamID === teamId) p.morale = 100;
+        const { position } = req.body;
+
+        if (!position) {
+            return res.status(400).json({ message: "Please select a position to train." });
+        }
+
+        const team = getTeam(req.gameState, teamId);
+        if (!team) return res.status(404).json({ message: "Team not found." });
+
+        // Check if there's already an active training programme
+        if (team.trainingProgramme && team.trainingProgramme.matchesRemaining > 0) {
+            return res.status(400).json({
+                message: `Training already in progress for ${team.trainingProgramme.position}. ${team.trainingProgramme.matchesRemaining} match(es) remaining.`
+            });
+        }
+
+        // Set a new training programme
+        team.trainingProgramme = {
+            position: position,
+            matchesRemaining: 3,
+            boost: 2
+        };
+
+        res.json({
+            message: `Training focus set to ${position}. The +2 rating boost will apply after 3 matches.`,
+            trainingProgramme: team.trainingProgramme
         });
-        res.json({ message: "Training complete. Squad morale is maximized!" });
+    } catch (err) { res.status(500).send("Server Error"); }
+});
+
+// Get current training status
+app.get('/api/teams/:id/training', async (req, res) => {
+    try {
+        const teamId = parseInt(req.params.id);
+        const team = getTeam(req.gameState, teamId);
+        if (!team) return res.status(404).json({ message: "Team not found." });
+
+        res.json({ trainingProgramme: team.trainingProgramme || null });
     } catch (err) { res.status(500).send("Server Error"); }
 });
 
@@ -322,6 +356,25 @@ app.post('/api/matches/simulate', async (req, res) => {
             homeTeam.points = (homeTeam.points || 0) + 1;
             awayTeam.points = (awayTeam.points || 0) + 1;
         }
+
+        // Process training programmes for both teams involved
+        [homeTeam, awayTeam].forEach(team => {
+            if (team.trainingProgramme && team.trainingProgramme.matchesRemaining > 0) {
+                team.trainingProgramme.matchesRemaining -= 1;
+
+                if (team.trainingProgramme.matchesRemaining <= 0) {
+                    // Apply the +2 boost to all players in that position
+                    const targetPos = team.trainingProgramme.position;
+                    req.gameState.players.forEach(p => {
+                        if (p.teamID === team.teamID && p.position && p.position.includes(targetPos)) {
+                            p.overallRating = Math.min(99, p.overallRating + team.trainingProgramme.boost);
+                        }
+                    });
+                    console.log(`Training complete for ${team.name}: +2 to all ${targetPos} players.`);
+                    team.trainingProgramme = null; // Clear the programme
+                }
+            }
+        });
 
         res.json({
             message: "Match Simulated and Standings Updated!",
