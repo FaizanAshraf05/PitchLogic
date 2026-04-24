@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, ImageBackground } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useNavigation, useFocusEffect, useRoute } from '@react-navigation/native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Colors, Typography, Spacing } from '../theme';
 
@@ -18,6 +18,7 @@ interface TeamStanding {
 
 export function LeagueScreen() {
   const navigation = useNavigation<any>();
+  const route = useRoute<any>();
   const [standings, setStandings] = useState<TeamStanding[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -31,7 +32,10 @@ export function LeagueScreen() {
     try {
       setLoading(true);
       const API_BASE = 'https://obliged-preamble-amplifier.ngrok-free.dev/api';
-      const response = await fetch(`${API_BASE}/league/standings`);
+      const managerName = route.params?.managerName || navigation.getState()?.routes.find((r: any) => r.name === 'Main')?.params?.managerName || 'default';
+      const response = await fetch(`${API_BASE}/league/standings`, {
+        headers: { 'x-manager-name': managerName }
+      });
       
       if (!response.ok) {
         throw new Error('Failed to fetch standings');

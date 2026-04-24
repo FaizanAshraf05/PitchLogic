@@ -48,7 +48,10 @@ export function TransferScreen() {
   const fetchMarketPlayers = async () => {
     try {
       const API_BASE = 'https://obliged-preamble-amplifier.ngrok-free.dev/api';
-      const response = await fetch(`${API_BASE}/transfers/market/all`);
+      const managerName = route.params?.managerName || navigation.getState()?.routes.find((r: any) => r.name === 'Main')?.params?.managerName || 'default';
+      const response = await fetch(`${API_BASE}/transfers/market/all`, {
+        headers: { 'x-manager-name': managerName }
+      });
       if (!response.ok) throw new Error('Failed to fetch transfer market');
       const data: MarketPlayer[] = await response.json();
 
@@ -79,9 +82,13 @@ export function TransferScreen() {
     try {
       setSubmitting(true);
       const API_BASE = 'https://obliged-preamble-amplifier.ngrok-free.dev/api';
+      const managerName = route.params?.managerName || navigation.getState()?.routes.find((r: any) => r.name === 'Main')?.params?.managerName || 'default';
       const response = await fetch(`${API_BASE}/transfers/buy`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'x-manager-name': managerName
+        },
         body: JSON.stringify({
           buyerTeamId: teamId,
           playerId: selectedPlayer.playerID,

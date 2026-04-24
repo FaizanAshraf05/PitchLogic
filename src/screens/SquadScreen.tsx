@@ -24,6 +24,7 @@ interface Player {
   position: string;
   overallRating: number;
   squadRole: 'Starter' | 'Bench' | string | null;
+  squadPositionIndex?: number;
 }
 
 const POS_GROUPS: Record<string, string[]> = {
@@ -129,7 +130,7 @@ const FORMATIONS = {
 export function SquadScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
-  const teamId = route.params?.teamId || navigation.getParent()?.getState()?.routes.find((r: any) => r.name === 'Main')?.params?.teamId || 10;
+  const teamId = route.params?.teamId || navigation.getState()?.routes.find((r: any) => r.name === 'Main')?.params?.teamId || 10;
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -154,7 +155,10 @@ export function SquadScreen() {
     try {
       setLoading(true);
       const API_BASE = 'https://obliged-preamble-amplifier.ngrok-free.dev/api';
-      const response = await fetch(`${API_BASE}/teams/${teamId}/players`);
+      const managerName = route.params?.managerName || navigation.getState()?.routes.find((r: any) => r.name === 'Main')?.params?.managerName || 'default';
+      const response = await fetch(`${API_BASE}/teams/${teamId}/players`, {
+        headers: { 'x-manager-name': managerName }
+      });
       
       if (!response.ok) throw new Error('Failed to fetch players');
       
@@ -164,41 +168,62 @@ export function SquadScreen() {
       let dbBench = data.filter(p => p.squadRole === 'Bench');
       let dbReserves = data.filter(p => p.squadRole === 'Reserve');
 
+      dbStarters.sort((a, b) => (a.squadPositionIndex ?? 99) - (b.squadPositionIndex ?? 99));
+      dbBench.sort((a, b) => (a.squadPositionIndex ?? 99) - (b.squadPositionIndex ?? 99));
+      dbReserves.sort((a, b) => (a.squadPositionIndex ?? 99) - (b.squadPositionIndex ?? 99));
+
       const newStarters = new Array(11).fill(null);
-      const unassigned: Player[] = [];
-      
-      dbStarters.forEach(p => {
-        let placed = false;
-        for (let i = 0; i < 11; i++) {
-           if (newStarters[i] === null && activeFormation[i].label === p.position) {
-              newStarters[i] = p;
-              placed = true;
-              break;
-           }
-        }
-        if (!placed) unassigned.push(p);
-      });
-      
-      let lineupChanged = false;
-      unassigned.forEach(p => {
-         const emptyIdx = newStarters.findIndex(s => s === null);
-         if (emptyIdx !== -1) {
-            newStarters[emptyIdx] = p;
-            lineupChanged = true;
-         } else {
-            dbBench.unshift(p);
-            lineupChanged = true;
-         }
-      });
+      const hasSavedPositions = dbStarters.every(p => p.squadPositionIndex !== undefined && p.squadPositionIndex !== null);
+
+      if (hasSavedPositions && dbStarters.length === 11) {
+          dbStarters.forEach(p => {
+              if (p.squadPositionIndex !== undefined && p.squadPositionIndex >= 0 && p.squadPositionIndex < 11) {
+                  newStarters[p.squadPositionIndex] = p;
+              }
+          });
+          // Fill gaps if any
+          dbStarters.forEach(p => {
+              if (!newStarters.includes(p)) {
+                  const emptyIdx = newStarters.findIndex(s => s === null);
+                  if (emptyIdx !== -1) newStarters[emptyIdx] = p;
+              }
+          });
+      } else {
+          // Fallback logic
+          const unassigned: Player[] = [];
+          dbStarters.forEach(p => {
+            let placed = false;
+            for (let i = 0; i < 11; i++) {
+               if (newStarters[i] === null && activeFormation[i].label === p.position) {
+                  newStarters[i] = p;
+                  placed = true;
+                  break;
+               }
+            }
+            if (!placed) unassigned.push(p);
+          });
+          
+          let lineupChanged = false;
+          unassigned.forEach(p => {
+             const emptyIdx = newStarters.findIndex(s => s === null);
+             if (emptyIdx !== -1) {
+                newStarters[emptyIdx] = p;
+                lineupChanged = true;
+             } else {
+                dbBench.unshift(p);
+                lineupChanged = true;
+             }
+          });
+
+          if (lineupChanged) {
+            saveLineup(newStarters, dbBench, dbReserves);
+          }
+      }
       
       setStarters(newStarters);
       setSubs(dbBench);
       setReserves(dbReserves);
       setLoading(false);
-
-      if (lineupChanged) {
-        saveLineup(newStarters, dbBench, dbReserves);
-      }
     } catch (error) {
       console.error(error);
       setLoading(false);
@@ -219,11 +244,32 @@ export function SquadScreen() {
         return;
       }
 
+      // Calculate OVR for this specific lineup including position drops
+      let currentOvr = 0;
+      const validStarters = currentStarters.filter(p => p !== null) as Player[];
+      if (validStarters.length > 0) {
+        let total = 0;
+        validStarters.forEach((p, idx) => {
+          const drop = getRatingDrop(p.position, activeFormation[idx].label);
+          total += Math.max(1, p.overallRating - drop);
+        });
+        currentOvr = Math.round(total / validStarters.length);
+      }
+
       const API_BASE = 'https://obliged-preamble-amplifier.ngrok-free.dev/api';
+      const managerName = route.params?.managerName || navigation.getState()?.routes.find((r: any) => r.name === 'Main')?.params?.managerName || 'default';
       const response = await fetch(`${API_BASE}/teams/${teamId}/lineup`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ starters: starterIds, bench: subIds, reserves: reserveIds }),
+        headers: { 
+          'Content-Type': 'application/json',
+          'x-manager-name': managerName
+        },
+        body: JSON.stringify({ 
+            starters: starterIds, 
+            bench: subIds, 
+            reserves: reserveIds,
+            teamOverallRating: currentOvr
+        }),
       });
 
       if (!response.ok) throw new Error('Failed to save lineup');

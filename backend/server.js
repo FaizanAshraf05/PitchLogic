@@ -14,25 +14,33 @@ const poolPromise = sql.connect(config)
     })
     .catch(err => console.log('Database Connection Failed! Bad Config: ', err));
 
-// Global In-Memory Game State
-let gameState = {
-    active: false,
-    managerId: null,
-    teams: [],
-    players: [],
-    fixtures: [],
-    managers: []
-};
+// Global In-Memory Game States (Multi-user support)
+const gameSessions = new Map();
+
+// Middleware to attach the correct game state to the request
+app.use((req, res, next) => {
+    const managerName = (req.query && req.query.manager) || (req.body && req.body.managerName) || (req.headers && req.headers['x-manager-name']) || 'default';
+    if (!gameSessions.has(managerName)) {
+        gameSessions.set(managerName, {
+            active: false,
+            managerId: null,
+            teams: [],
+            players: [],
+            fixtures: [],
+            managers: []
+        });
+    }
+    req.gameState = gameSessions.get(managerName);
+    next();
+});
 
 // HELPER FUNCTION: Get Team by ID
-const getTeam = (id) => gameState.teams.find(t => t.teamID == id);
+const getTeam = (gameState, id) => gameState.teams.find(t => t.teamID == id);
 
 // Get Teams
 app.get('/api/teams', async (req, res) => {
     try {
-        if (!gameState.active) {
-            // If the game hasn't started yet, the TeamSelectScreen still needs the list of teams!
-            // Fetch directly from the SQL database.
+        if (!req.gameState.active) {
             const pool = await poolPromise;
             const result = await pool.request().query(`
                 SELECT t.teamID, t.name AS teamName, t.transferBudget, t.formation, c.username AS managerName
@@ -43,9 +51,8 @@ app.get('/api/teams', async (req, res) => {
             return res.json(result.recordset);
         }
 
-        // Return teams enriched with managerName
-        const result = gameState.teams.map(t => {
-            const manager = gameState.managers.find(m => m.managerID == t.managerID);
+        const result = req.gameState.teams.map(t => {
+            const manager = req.gameState.managers.find(m => m.managerID == t.managerID);
             return {
                 teamID: t.teamID,
                 teamName: t.name,
@@ -61,8 +68,8 @@ app.get('/api/teams', async (req, res) => {
 
 app.get('/api/teams/:id/players', async (req, res) => {
     try {
-        if (!gameState.active) return res.status(400).json({ message: "Game not started" });
-        const teamPlayers = gameState.players
+        if (!req.gameState.active) return res.status(400).json({ message: "Game not started" });
+        const teamPlayers = req.gameState.players
             .filter(p => p.teamID == req.params.id)
             .sort((a, b) => b.overallRating - a.overallRating);
         res.json(teamPlayers);
@@ -72,8 +79,8 @@ app.get('/api/teams/:id/players', async (req, res) => {
 // UC-05
 app.get('/api/league/standings', async (req, res) => {
     try {
-        if (!gameState.active) return res.status(400).json({ message: "Game not started" });
-        const standings = gameState.teams
+        if (!req.gameState.active) return res.status(400).json({ message: "Game not started" });
+        const standings = req.gameState.teams
             .map(t => ({
                 teamID: t.teamID,
                 name: t.name,
@@ -96,9 +103,9 @@ app.get('/api/league/standings', async (req, res) => {
 app.get('/api/scout/players', async (req, res) => {
     try {
         const { position } = req.query;
-        if (!gameState.active) return res.status(400).json({ message: "Game not started" });
+        if (!req.gameState.active) return res.status(400).json({ message: "Game not started" });
 
-        let freeAgents = gameState.players.filter(p => p.teamID === null);
+        let freeAgents = req.gameState.players.filter(p => p.teamID === null);
         if (position) {
             freeAgents = freeAgents.filter(p => p.position && p.position.includes(position));
         }
@@ -110,7 +117,7 @@ app.get('/api/scout/players', async (req, res) => {
 app.put('/api/teams/:id/lineup', async (req, res) => {
     try {
         const teamId = parseInt(req.params.id);
-        const { starters, bench, reserves } = req.body;
+        const { starters, bench, reserves, teamOverallRating } = req.body;
 
         if (!Array.isArray(starters) || starters.length !== 11) {
             return res.status(400).send("You must select exactly 11 starting players.");
@@ -120,13 +127,32 @@ app.put('/api/teams/:id/lineup', async (req, res) => {
         const safeBench = Array.isArray(bench) ? bench.map(id => parseInt(id)).filter(id => !isNaN(id)) : [];
         const safeReserves = Array.isArray(reserves) ? reserves.map(id => parseInt(id)).filter(id => !isNaN(id)) : [];
 
-        gameState.players.forEach(p => {
+        req.gameState.players.forEach(p => {
             if (p.teamID === teamId) {
-                if (safeStarters.includes(p.playerID)) p.squadRole = 'Starter';
-                else if (safeBench.includes(p.playerID)) p.squadRole = 'Bench';
-                else p.squadRole = 'Reserve'; // Default to Reserve if not in starter/bench
+                const starterIdx = safeStarters.indexOf(p.playerID);
+                const benchIdx = safeBench.indexOf(p.playerID);
+                const reserveIdx = safeReserves.indexOf(p.playerID);
+
+                if (starterIdx !== -1) {
+                    p.squadRole = 'Starter';
+                    p.squadPositionIndex = starterIdx;
+                } else if (benchIdx !== -1) {
+                    p.squadRole = 'Bench';
+                    p.squadPositionIndex = benchIdx;
+                } else if (reserveIdx !== -1) {
+                    p.squadRole = 'Reserve';
+                    p.squadPositionIndex = reserveIdx;
+                } else {
+                    p.squadRole = 'Reserve';
+                    p.squadPositionIndex = 99;
+                }
             }
         });
+
+        if (teamOverallRating !== undefined) {
+            const team = getTeam(req.gameState, teamId);
+            if (team) team.currentOVR = teamOverallRating;
+        }
 
         res.json({ message: "Lineup saved successfully!" });
     } catch (err) { res.status(500).send(err.message); }
@@ -137,7 +163,7 @@ app.put('/api/teams/:id/tactics', async (req, res) => {
     try {
         const teamId = parseInt(req.params.id);
         const { newFormation, newStyle } = req.body;
-        const team = getTeam(teamId);
+        const team = getTeam(req.gameState, teamId);
         if (team) {
             team.formation = newFormation;
             team.teamStyle = newStyle;
@@ -150,7 +176,7 @@ app.put('/api/teams/:id/tactics', async (req, res) => {
 app.put('/api/teams/:id/training', async (req, res) => {
     try {
         const teamId = parseInt(req.params.id);
-        gameState.players.forEach(p => {
+        req.gameState.players.forEach(p => {
             if (p.teamID === teamId) p.morale = 100;
         });
         res.json({ message: "Training complete. Squad morale is maximized!" });
@@ -160,7 +186,7 @@ app.put('/api/teams/:id/training', async (req, res) => {
 // UC-06
 app.post('/api/game/advance-week', async (req, res) => {
     try {
-        gameState.players.forEach(p => p.stamina = 100);
+        req.gameState.players.forEach(p => p.stamina = 100);
         res.json({ message: "Week advanced. Stamina restored." });
     } catch (err) { res.status(500).send("Server Error"); }
 });
@@ -170,7 +196,7 @@ app.post('/api/teams/:id/facilities/upgrade', async (req, res) => {
     try {
         const teamId = parseInt(req.params.id);
         const { cost } = req.body;
-        const team = getTeam(teamId);
+        const team = getTeam(req.gameState, teamId);
         if (team) {
             team.transferBudget -= cost;
         }
@@ -181,42 +207,70 @@ app.post('/api/teams/:id/facilities/upgrade', async (req, res) => {
 // UC-09
 app.post('/api/matches/simulate', async (req, res) => {
     try {
-        const { homeTeamId, awayTeamId, homeGoals, awayGoals } = req.body;
-        const homeTeam = getTeam(homeTeamId);
-        const awayTeam = getTeam(awayTeamId);
+        const { homeTeamId, awayTeamId, homeGoals, awayGoals, matchId } = req.body;
+        const homeTeam = getTeam(req.gameState, homeTeamId);
+        const awayTeam = getTeam(req.gameState, awayTeamId);
 
-        if (homeTeam && awayTeam) {
-            homeTeam.matchesPlayed = (homeTeam.matchesPlayed || 0) + 1;
-            awayTeam.matchesPlayed = (awayTeam.matchesPlayed || 0) + 1;
-
-            homeTeam.goalsFor = (homeTeam.goalsFor || 0) + homeGoals;
-            awayTeam.goalsFor = (awayTeam.goalsFor || 0) + awayGoals;
-
-            if (homeGoals > awayGoals) {
-                const diff = homeGoals - awayGoals;
-                homeTeam.wins = (homeTeam.wins || 0) + 1;
-                awayTeam.losses = (awayTeam.losses || 0) + 1;
-
-                homeTeam.points = (homeTeam.points || 0) + 3;
-                homeTeam.goalDifference = (homeTeam.goalDifference || 0) + diff;
-                awayTeam.goalDifference = (awayTeam.goalDifference || 0) - diff;
-            } else if (awayGoals > homeGoals) {
-                const diff = awayGoals - homeGoals;
-                awayTeam.wins = (awayTeam.wins || 0) + 1;
-                homeTeam.losses = (homeTeam.losses || 0) + 1;
-
-                awayTeam.points = (awayTeam.points || 0) + 3;
-                awayTeam.goalDifference = (awayTeam.goalDifference || 0) + diff;
-                homeTeam.goalDifference = (homeTeam.goalDifference || 0) - diff;
-            } else {
-                homeTeam.draws = (homeTeam.draws || 0) + 1;
-                awayTeam.draws = (awayTeam.draws || 0) + 1;
-
-                homeTeam.points = (homeTeam.points || 0) + 1;
-                awayTeam.points = (awayTeam.points || 0) + 1;
-            }
+        if (!homeTeam || !awayTeam) {
+            return res.status(404).json({ message: "One or both teams not found." });
         }
-        res.json({ message: "Match Simulated and Standings Updated!" });
+
+        const fixture = matchId
+            ? req.gameState.fixtures.find(f => f.matchID === matchId)
+            : req.gameState.fixtures.find(f =>
+                f.homeTeamID === homeTeamId &&
+                f.awayTeamID === awayTeamId &&
+                f.isSimulated === 0
+            );
+
+        if (fixture) {
+            fixture.isSimulated = 1;
+            fixture.homeScore = homeGoals;
+            fixture.awayScore = awayGoals;
+        }
+
+        homeTeam.matchesPlayed = (homeTeam.matchesPlayed || 0) + 1;
+        awayTeam.matchesPlayed = (awayTeam.matchesPlayed || 0) + 1;
+
+        homeTeam.goalsFor = (homeTeam.goalsFor || 0) + homeGoals;
+        awayTeam.goalsFor = (awayTeam.goalsFor || 0) + awayGoals;
+        homeTeam.goalsAgainst = (homeTeam.goalsAgainst || 0) + awayGoals;
+        awayTeam.goalsAgainst = (awayTeam.goalsAgainst || 0) + homeGoals;
+
+        if (homeGoals > awayGoals) {
+            const diff = homeGoals - awayGoals;
+            homeTeam.wins = (homeTeam.wins || 0) + 1;
+            awayTeam.losses = (awayTeam.losses || 0) + 1;
+
+            homeTeam.points = (homeTeam.points || 0) + 3;
+            homeTeam.goalDifference = (homeTeam.goalDifference || 0) + diff;
+            awayTeam.goalDifference = (awayTeam.goalDifference || 0) - diff;
+        } else if (awayGoals > homeGoals) {
+            const diff = awayGoals - homeGoals;
+            awayTeam.wins = (awayTeam.wins || 0) + 1;
+            homeTeam.losses = (homeTeam.losses || 0) + 1;
+
+            awayTeam.points = (awayTeam.points || 0) + 3;
+            awayTeam.goalDifference = (awayTeam.goalDifference || 0) + diff;
+            homeTeam.goalDifference = (homeTeam.goalDifference || 0) - diff;
+        } else {
+            homeTeam.draws = (homeTeam.draws || 0) + 1;
+            awayTeam.draws = (awayTeam.draws || 0) + 1;
+
+            homeTeam.points = (homeTeam.points || 0) + 1;
+            awayTeam.points = (awayTeam.points || 0) + 1;
+        }
+
+        res.json({
+            message: "Match Simulated and Standings Updated!",
+            result: {
+                homeTeamName: homeTeam.name,
+                awayTeamName: awayTeam.name,
+                homeGoals,
+                awayGoals,
+                matchId: fixture ? fixture.matchID : null
+            }
+        });
     } catch (err) { res.status(500).send(err.message); }
 });
 
@@ -229,9 +283,9 @@ app.post('/api/transfers/ai-process', async (req, res) => {
 
 app.get('/api/transfers/market/all', async (req, res) => {
     try {
-        if (!gameState.active) return res.status(400).json({ message: "Game not started" });
-        const market = gameState.players.map(p => {
-            const team = getTeam(p.teamID);
+        if (!req.gameState.active) return res.status(400).json({ message: "Game not started" });
+        const market = req.gameState.players.map(p => {
+            const team = getTeam(req.gameState, p.teamID);
             return {
                 playerID: p.playerID,
                 name: p.name,
@@ -250,20 +304,26 @@ app.get('/api/transfers/market/all', async (req, res) => {
 
 app.get('/api/matches/:id/preview', async (req, res) => {
     try {
-        if (!gameState.active) return res.status(400).json({ message: "Game not started" });
+        if (!req.gameState.active) return res.status(400).json({ message: "Game not started" });
         const matchId = parseInt(req.params.id);
-        const match = gameState.fixtures.find(m => m.matchID === matchId);
+        const match = req.gameState.fixtures.find(m => m.matchID === matchId);
         if (!match) return res.status(404).json({ message: "Match not found." });
 
-        const homeTeam = getTeam(match.homeTeamID);
-        const awayTeam = getTeam(match.awayTeamID);
+        const homeTeam = getTeam(req.gameState, match.homeTeamID);
+        const awayTeam = getTeam(req.gameState, match.awayTeamID);
 
         const getTeamStats = (team) => {
             if (!team) return null;
-            const players = gameState.players.filter(p => p.teamID === team.teamID);
-            const overallRating = players.length > 0 
-                ? Math.round(players.reduce((sum, p) => sum + p.overallRating, 0) / players.length)
+            let teamPlayers = req.gameState.players.filter(p => p.teamID === team.teamID);
+            let starters = teamPlayers.filter(p => p.squadRole === 'Starter');
+            if (starters.length !== 11) {
+                starters = teamPlayers.sort((a, b) => b.overallRating - a.overallRating).slice(0, 11);
+            }
+            const calculatedOVR = starters.length > 0 
+                ? Math.round(starters.reduce((sum, p) => sum + p.overallRating, 0) / starters.length)
                 : 0;
+            const overallRating = team.currentOVR || calculatedOVR;
+
             const avgGoals = team.matchesPlayed > 0 
                 ? (team.goalsFor / team.matchesPlayed).toFixed(1) 
                 : "-";
@@ -289,22 +349,22 @@ app.get('/api/matches/:id/preview', async (req, res) => {
 
 app.get('/api/teams/:id/next-match', async (req, res) => {
     try {
-        if (!gameState.active) return res.status(400).json({ message: "Game not started" });
+        if (!req.gameState.active) return res.status(400).json({ message: "Game not started" });
         const teamId = parseInt(req.params.id);
-        const match = gameState.fixtures.find(m => (m.homeTeamID === teamId || m.awayTeamID === teamId) && m.isSimulated === 0);
+        const match = req.gameState.fixtures.find(m => (m.homeTeamID === teamId || m.awayTeamID === teamId) && m.isSimulated === 0);
         res.json(match || { message: "No upcoming matches." });
     } catch (err) { res.status(500).send("Server Error"); }
 });
 
 app.get('/api/teams/:id/schedule', async (req, res) => {
     try {
-        if (!gameState.active) return res.status(400).json({ message: "Game not started" });
+        if (!req.gameState.active) return res.status(400).json({ message: "Game not started" });
         const teamId = parseInt(req.params.id);
-        const schedule = gameState.fixtures
+        const schedule = req.gameState.fixtures
             .filter(m => m.homeTeamID === teamId || m.awayTeamID === teamId)
             .map(m => {
-                const homeTeam = getTeam(m.homeTeamID);
-                const awayTeam = getTeam(m.awayTeamID);
+                const homeTeam = getTeam(req.gameState, m.homeTeamID);
+                const awayTeam = getTeam(req.gameState, m.awayTeamID);
                 return {
                     ...m,
                     homeTeamName: homeTeam ? homeTeam.name : 'Unknown',
@@ -321,11 +381,11 @@ app.get('/api/teams/:id/schedule', async (req, res) => {
 
 app.post('/api/transfers/buy', async (req, res) => {
     try {
-        if (!gameState.active) return res.status(400).json({ message: "Game not started" });
+        if (!req.gameState.active) return res.status(400).json({ message: "Game not started" });
         const { buyerTeamId, playerId, bidAmount } = req.body;
 
-        const player = gameState.players.find(p => p.playerID == playerId);
-        const buyer = getTeam(buyerTeamId);
+        const player = req.gameState.players.find(p => p.playerID == playerId);
+        const buyer = getTeam(req.gameState, buyerTeamId);
 
         if (!player || !buyer) return res.status(404).send("Player or Team not found.");
 
@@ -340,7 +400,7 @@ app.post('/api/transfers/buy', async (req, res) => {
         buyer.transferBudget -= bidAmount;
 
         // Add to seller
-        const seller = getTeam(player.teamID);
+        const seller = getTeam(req.gameState, player.teamID);
         if (seller) {
             seller.transferBudget += bidAmount;
         }
@@ -367,42 +427,44 @@ app.post('/api/game/new', async (req, res) => {
         const playersRes = await pool.request().query('SELECT * FROM Player');
         const managersRes = await pool.request().query('SELECT * FROM ClubManager');
 
-        gameState.teams = teamsRes.recordset;
-        gameState.players = playersRes.recordset;
-        gameState.managers = managersRes.recordset;
+        req.gameState.teams = teamsRes.recordset;
+        req.gameState.players = playersRes.recordset;
+        req.gameState.managers = managersRes.recordset;
 
-        // Ensure goalDifference and points exist
-        gameState.teams.forEach(t => {
-            t.points = t.points || 0;
-            t.goalDifference = t.goalDifference || 0;
-            t.matchesPlayed = t.matchesPlayed || 0;
-            t.wins = t.wins || 0;
-            t.draws = t.draws || 0;
-            t.losses = t.losses || 0;
-            t.goalsFor = t.goalsFor || 0;
+        // Reset all team stats to exactly 0 to start fresh
+        req.gameState.teams.forEach(t => {
+            t.points = 0;
+            t.goalDifference = 0;
+            t.matchesPlayed = 0;
+            t.wins = 0;
+            t.draws = 0;
+            t.losses = 0;
+            t.goalsFor = 0;
+            t.goalsAgainst = 0;
+            t.currentOVR = 0;
         });
 
         // Setup Manager Logic IN MEMORY
-        let manager = gameState.managers.find(m => m.username === managerName);
+        let manager = req.gameState.managers.find(m => m.username === managerName);
         if (!manager) {
             // Assign a fake ID for memory purposes
-            const newId = gameState.managers.length > 0 ? Math.max(...gameState.managers.map(m => m.managerID)) + 1 : 1;
+            const newId = req.gameState.managers.length > 0 ? Math.max(...req.gameState.managers.map(m => m.managerID)) + 1 : 1;
             manager = { managerID: newId, username: managerName, isHuman: 1 };
-            gameState.managers.push(manager);
+            req.gameState.managers.push(manager);
             console.log(`New Manager ${managerName} created in memory.`);
         } else {
             console.log(`Manager ${managerName} returning to the game.`);
         }
 
         // Assign team to manager in memory
-        const team = getTeam(teamId);
+        const team = getTeam(req.gameState, teamId);
         if (team) {
             team.managerID = manager.managerID;
         }
 
         // Generate Fixtures IN MEMORY
         let matchInserts = [];
-        let teamsList = gameState.teams.map(t => t.teamID);
+        let teamsList = req.gameState.teams.map(t => t.teamID);
         let seasonStartDate = new Date('2026-08-15');
         const weeksToSimulate = 38;
         let matchIdCounter = 1;
@@ -431,9 +493,9 @@ app.post('/api/game/new', async (req, res) => {
             }
         }
 
-        gameState.fixtures = matchInserts;
-        gameState.active = true;
-        gameState.managerId = manager.managerID;
+        req.gameState.fixtures = matchInserts;
+        req.gameState.active = true;
+        req.gameState.managerId = manager.managerID;
 
         res.json({ message: "Game Started & Simple Schedule Generated!", managerId: manager.managerID });
     } catch (err) {

@@ -66,8 +66,11 @@ export function HomeScreen() {
   const fetchData = async () => {
     try {
       setLoading(true);
+      const reqManagerName = route.params?.managerName || navigation.getState()?.routes.find((r: any) => r.name === 'Main')?.params?.managerName || 'default';
       // Fetch all teams to get budget and map names
-      const teamsRes = await fetch(`${API_BASE}/teams`);
+      const teamsRes = await fetch(`${API_BASE}/teams`, {
+        headers: { 'x-manager-name': reqManagerName }
+      });
       if (teamsRes.ok) {
         const teamsData = await teamsRes.json();
         const map: Record<number, string> = {};
@@ -81,7 +84,9 @@ export function HomeScreen() {
       }
 
       // Fetch next match
-      const matchRes = await fetch(`${API_BASE}/teams/${teamId}/next-match`);
+      const matchRes = await fetch(`${API_BASE}/teams/${teamId}/next-match`, {
+        headers: { 'x-manager-name': reqManagerName }
+      });
       if (matchRes.ok) {
         const matchData = await matchRes.json();
         if (!matchData.message) {

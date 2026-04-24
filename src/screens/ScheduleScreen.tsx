@@ -29,7 +29,10 @@ export function ScheduleScreen() {
     try {
       setLoading(true);
       const API_BASE = 'https://obliged-preamble-amplifier.ngrok-free.dev/api';
-      const response = await fetch(`${API_BASE}/teams/${teamId}/schedule`);
+      const managerName = route.params?.managerName || navigation.getState()?.routes.find((r: any) => r.name === 'Main')?.params?.managerName || 'default';
+      const response = await fetch(`${API_BASE}/teams/${teamId}/schedule`, {
+        headers: { 'x-manager-name': managerName }
+      });
       if (response.ok) {
         const data = await response.json();
         setSchedule(data);

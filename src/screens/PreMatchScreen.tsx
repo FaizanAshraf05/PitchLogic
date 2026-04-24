@@ -84,7 +84,10 @@ export function PreMatchScreen() {
 
   const fetchPreview = async () => {
     try {
-      const res = await fetch(`${API_BASE}/matches/${matchId}/preview`);
+      const managerName = route.params?.managerName || navigation.getState()?.routes.find((r: any) => r.name === 'Main')?.params?.managerName || 'default';
+      const res = await fetch(`${API_BASE}/matches/${matchId}/preview`, {
+        headers: { 'x-manager-name': managerName }
+      });
       if (!res.ok) throw new Error('Failed to fetch preview');
       const json = await res.json();
       setData(json);
@@ -112,10 +115,15 @@ export function PreMatchScreen() {
     }
 
     try {
+      const managerName = route.params?.managerName || navigation.getState()?.routes.find((r: any) => r.name === 'Main')?.params?.managerName || 'default';
       const res = await fetch(`${API_BASE}/matches/simulate`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'x-manager-name': managerName
+        },
         body: JSON.stringify({
+          matchId: data.match.matchID,
           homeTeamId: data.homeTeam.teamID,
           awayTeamId: data.awayTeam.teamID,
           homeGoals,
