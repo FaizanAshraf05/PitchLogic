@@ -1,7 +1,6 @@
 import React from 'react';
 import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Colors } from '../theme';
 import { TitleScreen } from '../screens/TitleScreen';
 import { TeamSelectScreen } from '../screens/TeamSelectScreen';
@@ -11,17 +10,12 @@ import { MatchScreen } from '../screens/MatchScreen';
 import { LeagueScreen } from '../screens/LeagueScreen';
 import { MoreScreen } from '../screens/MoreScreen';
 import { ScheduleScreen } from '../screens/ScheduleScreen';
-import { TabBar } from '../components/TabBar';
 
 export type RootStackParamList = {
   Title: undefined;
   TeamSelect: undefined;
   Main: { teamId: string; managerName: string } | undefined;
   Schedule: { teamId: number } | undefined;
-};
-
-export type MainTabParamList = {
-  Home: undefined;
   Squad: undefined;
   Match: undefined;
   League: undefined;
@@ -29,7 +23,6 @@ export type MainTabParamList = {
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
-const Tab = createBottomTabNavigator<MainTabParamList>();
 
 const DarkTheme = {
   ...DefaultTheme,
@@ -45,23 +38,6 @@ const DarkTheme = {
   },
 };
 
-function MainTabs() {
-  return (
-    <Tab.Navigator
-      tabBar={(props) => <TabBar {...props} />}
-      screenOptions={{
-        headerShown: false,
-      }}
-    >
-      <Tab.Screen name="Home" component={HomeScreen} />
-      <Tab.Screen name="Squad" component={SquadScreen} />
-      <Tab.Screen name="Match" component={MatchScreen} />
-      <Tab.Screen name="League" component={LeagueScreen} />
-      <Tab.Screen name="More" component={MoreScreen} />
-    </Tab.Navigator>
-  );
-}
-
 export function AppNavigator() {
   return (
     <NavigationContainer theme={DarkTheme}>
@@ -73,7 +49,11 @@ export function AppNavigator() {
       >
         <Stack.Screen name="Title" component={TitleScreen} />
         <Stack.Screen name="TeamSelect" component={TeamSelectScreen} />
-        <Stack.Screen name="Main" component={MainTabs} />
+        <Stack.Screen name="Main" component={HomeScreen} />
+        <Stack.Screen name="Squad" component={SquadScreen} />
+        <Stack.Screen name="Match" component={MatchScreen} />
+        <Stack.Screen name="League" component={LeagueScreen} />
+        <Stack.Screen name="More" component={MoreScreen} />
         <Stack.Screen name="Schedule" component={ScheduleScreen} />
       </Stack.Navigator>
     </NavigationContainer>

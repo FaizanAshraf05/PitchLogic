@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { Shadow } from 'react-native-shadow-2';
 import { Colors, Spacing, Typography, BorderRadius } from '../theme';
 
@@ -45,15 +45,15 @@ const TEAM_LOGOS: Record<string, any> = {
 
 export function HomeScreen() {
   const navigation = useNavigation<any>();
+  const route = useRoute<any>();
   const [budget, setBudget] = useState<number | null>(null);
   const [nextMatch, setNextMatch] = useState<any | null>(null);
   const [teamsMap, setTeamsMap] = useState<Record<number, string>>({});
   const [loading, setLoading] = useState(true);
 
-  // Try to get manager name and team ID from parent route (Main)
-  const parentRoute = navigation.getParent()?.getState()?.routes.find((r: any) => r.name === 'Main');
-  const managerName = parentRoute?.params?.managerName || '[NAME]';
-  const teamId = parentRoute?.params?.teamId || 10; // Fallback to Man City
+  // Get manager name and team ID directly from route params
+  const managerName = route.params?.managerName || '[NAME]';
+  const teamId = route.params?.teamId || 10; // Fallback to Man City
   const managerNameUpper = managerName.toUpperCase();
 
   useEffect(() => {
