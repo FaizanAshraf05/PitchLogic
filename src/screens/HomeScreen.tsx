@@ -115,7 +115,7 @@ export function HomeScreen() {
     { id: 'transfers', title: 'Transfers', icon: 'swap-horizontal', route: 'Transfer' },
     { id: 'training', title: 'Training', icon: 'flag', route: 'Training' },
     { id: 'league_table', title: 'League Table', icon: 'table', route: 'League' },
-    { id: 'statistics', title: 'Statistics', icon: 'chart-bar', route: 'Statistics' },
+    { id: 'facilities', title: 'Facilities', icon: 'office-building', route: 'Facilities' },
     { id: 'schedule', title: 'Schedule', icon: 'calendar-month', route: 'Schedule' },
   ];
 

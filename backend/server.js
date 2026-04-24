@@ -58,7 +58,9 @@ app.get('/api/teams', async (req, res) => {
                 teamName: t.name,
                 transferBudget: t.transferBudget,
                 formation: t.formation,
-                managerName: manager ? manager.username : null
+                managerName: manager ? manager.username : null,
+                youthFacilityLevel: t.youthFacilityLevel || 70,
+                trainingFacilityLevel: t.trainingFacilityLevel || 70
             };
         }).sort((a, b) => b.transferBudget - a.transferBudget);
 
@@ -195,12 +197,72 @@ app.post('/api/game/advance-week', async (req, res) => {
 app.post('/api/teams/:id/facilities/upgrade', async (req, res) => {
     try {
         const teamId = parseInt(req.params.id);
-        const { cost } = req.body;
+        const { type } = req.body; // 'youth' or 'training'
         const team = getTeam(req.gameState, teamId);
-        if (team) {
-            team.transferBudget -= cost;
+        if (!team) return res.status(404).send("Team not found.");
+        
+        const currentLevel = type === 'youth' ? (team.youthFacilityLevel || 70) : (team.trainingFacilityLevel || 70);
+        if (currentLevel >= 100) {
+            return res.status(400).json({ message: "Facility is already at maximum level." });
         }
-        res.json({ message: "Facility upgraded!" });
+        
+        // Cost: 1M at level 70, up to 10M at level 100. Exponential scaling.
+        const cost = Math.floor(1000000 * Math.pow(10, (currentLevel - 70) / 30));
+
+        if (team.transferBudget < cost) {
+            return res.status(400).json({ message: "Not enough budget." });
+        }
+
+        team.transferBudget -= cost;
+        if (type === 'youth') {
+            team.youthFacilityLevel = currentLevel + 1;
+        } else {
+            team.trainingFacilityLevel = currentLevel + 1;
+        }
+
+        res.json({ message: "Facility upgraded successfully!", newLevel: currentLevel + 1, newBudget: team.transferBudget });
+    } catch (err) { res.status(500).send("Server Error"); }
+});
+
+app.post('/api/teams/:id/facilities/sign-youth', async (req, res) => {
+    try {
+        const teamId = parseInt(req.params.id);
+        const team = getTeam(req.gameState, teamId);
+        if (!team) return res.status(404).send("Team not found.");
+
+        const cost = 10000000; // 10M
+        if (team.transferBudget < cost) {
+            return res.status(400).json({ message: "Not enough budget. Signing a youth player costs $10M." });
+        }
+
+        const youthLevel = team.youthFacilityLevel || 70;
+        const minRating = Math.max(1, youthLevel - 10);
+        const maxRating = Math.min(99, youthLevel + 10);
+        const newRating = Math.floor(Math.random() * (maxRating - minRating + 1)) + minRating;
+
+        const firstNames = ["James", "John", "Robert", "Michael", "William", "David", "Richard", "Joseph", "Thomas", "Charles", "Leo", "Hugo", "Lucas", "Mateo"];
+        const lastNames = ["Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis", "Rodriguez", "Martinez", "Silva", "Santos", "Fernandes", "Costa"];
+        const randomName = firstNames[Math.floor(Math.random() * firstNames.length)] + " " + lastNames[Math.floor(Math.random() * lastNames.length)];
+        
+        const positions = ["GK", "CB", "LB", "RB", "CM", "CDM", "CAM", "LM", "RM", "ST", "RW", "LW"];
+        const randomPos = positions[Math.floor(Math.random() * positions.length)];
+
+        const newId = req.gameState.players.length > 0 ? Math.max(...req.gameState.players.map(p => p.playerID)) + 1 : 1;
+
+        const newPlayer = {
+            playerID: newId,
+            name: randomName,
+            position: randomPos,
+            overallRating: newRating,
+            marketValue: Math.floor(100000 * Math.pow(1.1, newRating - 50)),
+            teamID: teamId,
+            squadRole: 'Reserve'
+        };
+
+        team.transferBudget -= cost;
+        req.gameState.players.push(newPlayer);
+
+        res.json({ message: `Successfully signed ${randomName} (${randomPos}) with OVR ${newRating}!`, newBudget: team.transferBudget, player: newPlayer });
     } catch (err) { res.status(500).send("Server Error"); }
 });
 
@@ -442,6 +504,8 @@ app.post('/api/game/new', async (req, res) => {
             t.goalsFor = 0;
             t.goalsAgainst = 0;
             t.currentOVR = 0;
+            t.youthFacilityLevel = 70;
+            t.trainingFacilityLevel = 70;
         });
 
         // Setup Manager Logic IN MEMORY

@@ -12,11 +12,12 @@ import { MoreScreen } from '../screens/MoreScreen';
 import { ScheduleScreen } from '../screens/ScheduleScreen';
 import { TransferScreen } from '../screens/TransferScreen';
 import { PreMatchScreen } from '../screens/PreMatchScreen';
+import { FacilitiesScreen } from '../screens/FacilitiesScreen';
 
 export type RootStackParamList = {
   Title: undefined;
   TeamSelect: undefined;
-  Main: { teamId: string; managerName: string } | undefined;
+  Main: { teamId: number; managerName: string } | undefined;
   Schedule: { teamId: number } | undefined;
   Squad: undefined;
   Match: undefined;
@@ -24,6 +25,8 @@ export type RootStackParamList = {
   More: undefined;
   Transfer: { teamId: number } | undefined;
   PreMatch: { matchId: number; teamId: number } | undefined;
+  Facilities: undefined;
+  Training: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -61,6 +64,7 @@ export function AppNavigator() {
         <Stack.Screen name="Schedule" component={ScheduleScreen} />
         <Stack.Screen name="Transfer" component={TransferScreen} />
         <Stack.Screen name="PreMatch" component={PreMatchScreen} />
+        <Stack.Screen name="Facilities" component={FacilitiesScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );
