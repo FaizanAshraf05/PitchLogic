@@ -20,16 +20,16 @@ const { width } = Dimensions.get('window');
 const API_BASE = 'https://obliged-preamble-amplifier.ngrok-free.dev/api';
 
 const POSITIONS = [
-  { key: 'GK',  label: 'Goalkeeper',  icon: 'shield-half-full', color: '#e67e22' },
-  { key: 'CB',  label: 'Centre-Back', icon: 'shield-account',   color: '#3498db' },
-  { key: 'LB',  label: 'Left-Back',   icon: 'arrow-left-bold',  color: '#2ecc71' },
-  { key: 'RB',  label: 'Right-Back',  icon: 'arrow-right-bold', color: '#2ecc71' },
-  { key: 'CDM', label: 'Def. Mid',    icon: 'account-lock',     color: '#9b59b6' },
-  { key: 'CM',  label: 'Centre-Mid',  icon: 'account-switch',   color: '#1abc9c' },
-  { key: 'CAM', label: 'Att. Mid',    icon: 'star-circle',      color: '#f39c12' },
-  { key: 'LW',  label: 'Left Wing',   icon: 'chevron-double-left',  color: '#e74c3c' },
-  { key: 'RW',  label: 'Right Wing',  icon: 'chevron-double-right', color: '#e74c3c' },
-  { key: 'ST',  label: 'Striker',     icon: 'soccer',           color: '#f0c040' },
+  { key: 'GK', label: 'Goalkeeper', icon: 'shield-half-full', color: '#e67e22' },
+  { key: 'CB', label: 'Centre-Back', icon: 'shield-account', color: '#3498db' },
+  { key: 'LB', label: 'Left-Back', icon: 'arrow-left-bold', color: '#2ecc71' },
+  { key: 'RB', label: 'Right-Back', icon: 'arrow-right-bold', color: '#2ecc71' },
+  { key: 'CDM', label: 'Def. Mid', icon: 'account-lock', color: '#9b59b6' },
+  { key: 'CM', label: 'Centre-Mid', icon: 'account-switch', color: '#1abc9c' },
+  { key: 'CAM', label: 'Att. Mid', icon: 'star-circle', color: '#f39c12' },
+  { key: 'LW', label: 'Left Wing', icon: 'chevron-double-left', color: '#e74c3c' },
+  { key: 'RW', label: 'Right Wing', icon: 'chevron-double-right', color: '#e74c3c' },
+  { key: 'ST', label: 'Striker', icon: 'soccer', color: '#f0c040' },
 ];
 
 interface TrainingProgramme {
@@ -177,13 +177,7 @@ export function TrainingScreen() {
               activeOpacity={isDisabled ? 1 : 0.7}
               onPress={() => { if (!isDisabled) setSelectedPosition(pos.key); }}
             >
-              <View style={[styles.posIconContainer, { backgroundColor: isSelected ? pos.color : 'rgba(255,255,255,0.05)' }]}>
-                <MaterialCommunityIcons
-                  name={pos.icon as any}
-                  size={24}
-                  color={isSelected ? '#FFF' : pos.color}
-                />
-              </View>
+
               <Text style={[styles.posKey, isSelected && { color: '#FFF' }]}>{pos.key}</Text>
               <Text style={[styles.posLabel, isSelected && { color: '#ccc' }]}>{pos.label}</Text>
             </TouchableOpacity>
@@ -330,14 +324,7 @@ const styles = StyleSheet.create({
   posCardDisabled: {
     opacity: 0.4,
   },
-  posIconContainer: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
+
   posKey: {
     color: '#ccc',
     fontSize: 14,
