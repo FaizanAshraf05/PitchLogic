@@ -127,12 +127,8 @@ export function InboxScreen() {
           <View style={styles.playerInfoLeft}>
             <Text style={styles.playerName}>{offer.targetPlayerName}</Text>
             <View style={styles.tagRow}>
-              <View style={styles.tag}>
-                <Text style={styles.tagText}>{offer.targetPlayerPos}</Text>
-              </View>
-              <View style={[styles.tag, styles.ovrTag]}>
-                <Text style={styles.tagText}>{offer.targetPlayerOVR} OVR</Text>
-              </View>
+              <Text style={styles.tagText}>{offer.targetPlayerPos}</Text>
+              <Text style={styles.tagText}>{offer.targetPlayerOVR} OVR</Text>
             </View>
           </View>
           <View style={styles.offerAmountBox}>
@@ -187,10 +183,7 @@ export function InboxScreen() {
               {isResponding ? (
                 <ActivityIndicator size="small" color="#000" />
               ) : (
-                <>
-                  <MaterialCommunityIcons name="check" size={18} color="#000" />
-                  <Text style={styles.actionBtnText}>Accept</Text>
-                </>
+                <Text style={styles.actionBtnText}>Accept</Text>
               )}
             </TouchableOpacity>
 
@@ -199,7 +192,6 @@ export function InboxScreen() {
               onPress={() => { setCounteringId(offer.offerId); setCounterValue(''); }}
               disabled={isResponding}
             >
-              <MaterialCommunityIcons name="swap-horizontal" size={18} color="#000" />
               <Text style={styles.actionBtnText}>Counter</Text>
             </TouchableOpacity>
 
@@ -208,7 +200,6 @@ export function InboxScreen() {
               onPress={() => handleRespond(offer.offerId, 'reject')}
               disabled={isResponding}
             >
-              <MaterialCommunityIcons name="close" size={18} color="#FFF" />
               <Text style={[styles.actionBtnText, { color: '#FFF' }]}>Reject</Text>
             </TouchableOpacity>
           </View>
@@ -231,13 +222,6 @@ export function InboxScreen() {
           <MaterialCommunityIcons name="keyboard-return" size={32} color={Colors.green} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Transfer Inbox</Text>
-        <View style={styles.badgeContainer}>
-          {offers.length > 0 && (
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>{offers.length}</Text>
-            </View>
-          )}
-        </View>
       </View>
 
       {loading ? (
@@ -299,7 +283,6 @@ const styles = StyleSheet.create({
     fontSize: 28,
     color: '#FFF',
     fontFamily: Typography.fontFamily.bold,
-    flex: 1,
   },
   badgeContainer: {
     marginLeft: Spacing.sm,
@@ -380,20 +363,11 @@ const styles = StyleSheet.create({
   },
   tagRow: {
     flexDirection: 'row',
-    gap: 6,
-  },
-  tag: {
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    borderRadius: 8,
-    paddingVertical: 3,
-    paddingHorizontal: 10,
-  },
-  ovrTag: {
-    backgroundColor: 'rgba(46, 204, 113, 0.2)',
+    gap: 12,
   },
   tagText: {
-    color: '#CCC',
-    fontSize: 12,
+    color: Colors.textDim,
+    fontSize: 13,
     fontWeight: '600',
   },
   offerAmountBox: {

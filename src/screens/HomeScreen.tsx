@@ -117,7 +117,6 @@ export function HomeScreen() {
     { id: 'league_table', title: 'League Table', icon: 'table', route: 'League' },
     { id: 'facilities', title: 'Facilities', icon: 'office-building', route: 'Facilities' },
     { id: 'schedule', title: 'Schedule', icon: 'calendar-month', route: 'Schedule' },
-    { id: 'inbox', title: 'Inbox', icon: 'email', route: 'Inbox' },
   ];
 
   const formatCurrency = (value: number | null) => {
@@ -217,8 +216,17 @@ export function HomeScreen() {
       >
         {/* Header */}
         <View style={styles.headerContainer}>
-          <Text style={styles.greetingText}>Good Morning</Text>
-          <Text style={styles.nameText}>{managerNameUpper}</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.greetingText}>Good Morning</Text>
+            <Text style={styles.nameText}>{managerNameUpper}</Text>
+          </View>
+          <TouchableOpacity
+            style={styles.inboxIcon}
+            activeOpacity={0.7}
+            onPress={() => navigation.navigate('Inbox', { teamId })}
+          >
+            <MaterialCommunityIcons name="email-outline" size={24} color="#FFF" />
+          </TouchableOpacity>
         </View>
 
         {/* Budget Card */}
@@ -305,8 +313,9 @@ const styles = StyleSheet.create({
     paddingTop: 20,
   },
   headerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginBottom: 25,
-    alignItems: 'flex-start',
   },
   greetingText: {
     fontSize: 28,
@@ -318,6 +327,14 @@ const styles = StyleSheet.create({
     color: Colors.green,
     fontWeight: 'bold',
     marginTop: 2,
+  },
+  inboxIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   budgetContainer: {
     alignItems: 'center',
