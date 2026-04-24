@@ -234,12 +234,12 @@ app.post('/api/teams/:id/facilities/upgrade', async (req, res) => {
         const { type } = req.body; // 'youth' or 'training'
         const team = getTeam(req.gameState, teamId);
         if (!team) return res.status(404).send("Team not found.");
-        
+
         const currentLevel = type === 'youth' ? (team.youthFacilityLevel || 70) : (team.trainingFacilityLevel || 70);
         if (currentLevel >= 100) {
             return res.status(400).json({ message: "Facility is already at maximum level." });
         }
-        
+
         // Cost: 1M at level 70, up to 10M at level 100. Exponential scaling.
         const cost = Math.floor(1000000 * Math.pow(10, (currentLevel - 70) / 30));
 
@@ -277,7 +277,7 @@ app.post('/api/teams/:id/facilities/sign-youth', async (req, res) => {
         const firstNames = ["James", "John", "Robert", "Michael", "William", "David", "Richard", "Joseph", "Thomas", "Charles", "Leo", "Hugo", "Lucas", "Mateo"];
         const lastNames = ["Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis", "Rodriguez", "Martinez", "Silva", "Santos", "Fernandes", "Costa"];
         const randomName = firstNames[Math.floor(Math.random() * firstNames.length)] + " " + lastNames[Math.floor(Math.random() * lastNames.length)];
-        
+
         const positions = ["GK", "CB", "LB", "RB", "CM", "CDM", "CAM", "LM", "RM", "ST", "RW", "LW"];
         const randomPos = positions[Math.floor(Math.random() * positions.length)];
 
@@ -389,6 +389,110 @@ app.post('/api/matches/simulate', async (req, res) => {
     } catch (err) { res.status(500).send(err.message); }
 });
 
+// Simulate ai matches in the same game-week
+app.post('/api/matches/simulate-week', async (req, res) => {
+    try {
+        const { matchDate, excludeMatchId } = req.body;
+        if (!matchDate) return res.status(400).json({ message: "matchDate is required." });
+
+        const weekFixtures = req.gameState.fixtures.filter(f =>
+            f.matchDate === matchDate && f.isSimulated === 0 && f.matchID !== excludeMatchId
+        );
+
+        const results = [];
+
+        weekFixtures.forEach(fixture => {
+            const homeTeam = getTeam(req.gameState, fixture.homeTeamID);
+            const awayTeam = getTeam(req.gameState, fixture.awayTeamID);
+            if (!homeTeam || !awayTeam) return;
+
+            // Calculate OVR for each team from their best 11
+            const getTeamOVR = (team) => {
+                const teamPlayers = req.gameState.players.filter(p => p.teamID === team.teamID);
+                const top11 = teamPlayers.sort((a, b) => b.overallRating - a.overallRating).slice(0, 11);
+                if (top11.length === 0) return 50;
+                return Math.round(top11.reduce((sum, p) => sum + p.overallRating, 0) / top11.length);
+            };
+
+            const homeOVR = homeTeam.currentOVR || getTeamOVR(homeTeam);
+            const awayOVR = awayTeam.currentOVR || getTeamOVR(awayTeam);
+            const totalOVR = homeOVR + awayOVR;
+            const homeProb = totalOVR > 0 ? homeOVR / totalOVR : 0.5;
+
+            // Same scoring algorithm as the frontend uses for the player's match
+            let homeGoals = 0;
+            let awayGoals = 0;
+            for (let i = 0; i < 5; i++) {
+                if (Math.random() < (homeProb * 1.2)) homeGoals++;
+                if (Math.random() < ((1 - homeProb) * 1.2)) awayGoals++;
+            }
+
+            // Mark fixture as simulated
+            fixture.isSimulated = 1;
+            fixture.homeScore = homeGoals;
+            fixture.awayScore = awayGoals;
+
+            // Update standings
+            homeTeam.matchesPlayed = (homeTeam.matchesPlayed || 0) + 1;
+            awayTeam.matchesPlayed = (awayTeam.matchesPlayed || 0) + 1;
+            homeTeam.goalsFor = (homeTeam.goalsFor || 0) + homeGoals;
+            awayTeam.goalsFor = (awayTeam.goalsFor || 0) + awayGoals;
+            homeTeam.goalsAgainst = (homeTeam.goalsAgainst || 0) + awayGoals;
+            awayTeam.goalsAgainst = (awayTeam.goalsAgainst || 0) + homeGoals;
+
+            if (homeGoals > awayGoals) {
+                const diff = homeGoals - awayGoals;
+                homeTeam.wins = (homeTeam.wins || 0) + 1;
+                awayTeam.losses = (awayTeam.losses || 0) + 1;
+                homeTeam.points = (homeTeam.points || 0) + 3;
+                homeTeam.goalDifference = (homeTeam.goalDifference || 0) + diff;
+                awayTeam.goalDifference = (awayTeam.goalDifference || 0) - diff;
+            } else if (awayGoals > homeGoals) {
+                const diff = awayGoals - homeGoals;
+                awayTeam.wins = (awayTeam.wins || 0) + 1;
+                homeTeam.losses = (homeTeam.losses || 0) + 1;
+                awayTeam.points = (awayTeam.points || 0) + 3;
+                awayTeam.goalDifference = (awayTeam.goalDifference || 0) + diff;
+                homeTeam.goalDifference = (homeTeam.goalDifference || 0) - diff;
+            } else {
+                homeTeam.draws = (homeTeam.draws || 0) + 1;
+                awayTeam.draws = (awayTeam.draws || 0) + 1;
+                homeTeam.points = (homeTeam.points || 0) + 1;
+                awayTeam.points = (awayTeam.points || 0) + 1;
+            }
+
+            // Process training for AI teams
+            [homeTeam, awayTeam].forEach(team => {
+                if (team.trainingProgramme && team.trainingProgramme.matchesRemaining > 0) {
+                    team.trainingProgramme.matchesRemaining -= 1;
+                    if (team.trainingProgramme.matchesRemaining <= 0) {
+                        const targetPos = team.trainingProgramme.position;
+                        req.gameState.players.forEach(p => {
+                            if (p.teamID === team.teamID && p.position && p.position.includes(targetPos)) {
+                                p.overallRating = Math.min(99, p.overallRating + team.trainingProgramme.boost);
+                            }
+                        });
+                        team.trainingProgramme = null;
+                    }
+                }
+            });
+
+            results.push({
+                matchID: fixture.matchID,
+                homeTeamName: homeTeam.name,
+                awayTeamName: awayTeam.name,
+                homeGoals,
+                awayGoals
+            });
+        });
+
+        res.json({
+            message: `Simulated ${results.length} other match(es) this week.`,
+            results
+        });
+    } catch (err) { res.status(500).send(err.message); }
+});
+
 // UC-1
 app.post('/api/transfers/ai-process', async (req, res) => {
     try {
@@ -434,13 +538,13 @@ app.get('/api/matches/:id/preview', async (req, res) => {
             if (starters.length !== 11) {
                 starters = teamPlayers.sort((a, b) => b.overallRating - a.overallRating).slice(0, 11);
             }
-            const calculatedOVR = starters.length > 0 
+            const calculatedOVR = starters.length > 0
                 ? Math.round(starters.reduce((sum, p) => sum + p.overallRating, 0) / starters.length)
                 : 0;
             const overallRating = team.currentOVR || calculatedOVR;
 
-            const avgGoals = team.matchesPlayed > 0 
-                ? (team.goalsFor / team.matchesPlayed).toFixed(1) 
+            const avgGoals = team.matchesPlayed > 0
+                ? (team.goalsFor / team.matchesPlayed).toFixed(1)
                 : "-";
 
             return {

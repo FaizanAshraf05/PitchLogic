@@ -116,12 +116,15 @@ export function PreMatchScreen() {
 
     try {
       const managerName = route.params?.managerName || navigation.getState()?.routes.find((r: any) => r.name === 'Main')?.params?.managerName || 'default';
+      const headers = { 
+        'Content-Type': 'application/json',
+        'x-manager-name': managerName
+      };
+
+      // 1. Simulate the player's match
       const res = await fetch(`${API_BASE}/matches/simulate`, {
         method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'x-manager-name': managerName
-        },
+        headers,
         body: JSON.stringify({
           matchId: data.match.matchID,
           homeTeamId: data.homeTeam.teamID,
@@ -131,8 +134,36 @@ export function PreMatchScreen() {
         })
       });
       if (!res.ok) throw new Error('Simulation failed');
+
+      // 2. Simulate all other matches this week
+      let otherResults: any[] = [];
+      try {
+        const weekRes = await fetch(`${API_BASE}/matches/simulate-week`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            matchDate: data.match.matchDate,
+            excludeMatchId: data.match.matchID
+          })
+        });
+        if (weekRes.ok) {
+          const weekData = await weekRes.json();
+          otherResults = weekData.results || [];
+        }
+      } catch (e) {
+        console.warn('Failed to simulate other week matches:', e);
+      }
+
+      // 3. Build full results summary
+      let resultSummary = `${data.homeTeam.name} ${homeGoals} - ${awayGoals} ${data.awayTeam.name}`;
+      if (otherResults.length > 0) {
+        resultSummary += '\n\n— Other Results —';
+        otherResults.forEach((r: any) => {
+          resultSummary += `\n${r.homeTeamName} ${r.homeGoals} - ${r.awayGoals} ${r.awayTeamName}`;
+        });
+      }
       
-      Alert.alert('Full Time', `${data.homeTeam.name} ${homeGoals} - ${awayGoals} ${data.awayTeam.name}`, [
+      Alert.alert('Full Time', resultSummary, [
           { text: 'Continue', onPress: () => navigation.goBack() }
       ]);
     } catch (err) {
