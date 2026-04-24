@@ -6,3 +6,4 @@ export { MatchScreen } from './MatchScreen';
 export { LeagueScreen } from './LeagueScreen';
 export { TrainingScreen } from './TrainingScreen';
 export { ScheduleScreen } from './ScheduleScreen';
+export { InboxScreen } from './InboxScreen';

@@ -117,6 +117,7 @@ export function HomeScreen() {
     { id: 'league_table', title: 'League Table', icon: 'table', route: 'League' },
     { id: 'facilities', title: 'Facilities', icon: 'office-building', route: 'Facilities' },
     { id: 'schedule', title: 'Schedule', icon: 'calendar-month', route: 'Schedule' },
+    { id: 'inbox', title: 'Inbox', icon: 'email', route: 'Inbox' },
   ];
 
   const formatCurrency = (value: number | null) => {

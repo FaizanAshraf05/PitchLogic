@@ -24,10 +24,14 @@ app.use((req, res, next) => {
         gameSessions.set(managerName, {
             active: false,
             managerId: null,
+            playerTeamId: null,
+            weekNumber: 0,
             teams: [],
             players: [],
             fixtures: [],
-            managers: []
+            managers: [],
+            incomingOffers: [],
+            offerIdCounter: 1
         });
     }
     req.gameState = gameSessions.get(managerName);
@@ -502,18 +506,203 @@ app.post('/api/matches/simulate-week', async (req, res) => {
             });
         });
 
+        // Increment week number
+        req.gameState.weekNumber = (req.gameState.weekNumber || 0) + 1;
+
+        // Every 4 weeks, trigger AI transfer activity
+        let transferActivity = false;
+        let aiTransferSummary = [];
+        if (req.gameState.weekNumber % 4 === 0) {
+            transferActivity = true;
+            aiTransferSummary = runAITransfers(req.gameState);
+        }
+
         res.json({
             message: `Simulated ${results.length} other match(es) this week.`,
-            results
+            results,
+            transferActivity,
+            weekNumber: req.gameState.weekNumber,
+            aiTransferSummary
         });
     } catch (err) { res.status(500).send(err.message); }
 });
 
-// UC-1
+// AI Transfer Engine — runs every 4 weeks
+function runAITransfers(gameState) {
+    const playerTeamId = gameState.playerTeamId;
+    const aiTeams = gameState.teams.filter(t => t.teamID !== playerTeamId);
+    const summary = [];
+
+    // 1. AI bids on the player's team's players
+    const playerTeamPlayers = gameState.players.filter(p => p.teamID === playerTeamId);
+    aiTeams.forEach(aiTeam => {
+        // ~30% chance each AI team bids for one of the player's players
+        if (Math.random() > 0.30 || playerTeamPlayers.length === 0) return;
+
+        // Pick a random player from the human team
+        const target = playerTeamPlayers[Math.floor(Math.random() * playerTeamPlayers.length)];
+
+        // Varied bid: 0.7x to 1.5x market value (sometimes conservative, sometimes high)
+        const bidMultiplier = 0.7 + (Math.random() * 0.8);
+        const offerAmount = Math.floor((target.marketValue || 1000000) * bidMultiplier);
+
+        // Don't bid if the AI team can't afford it
+        if ((aiTeam.transferBudget || 0) < offerAmount) return;
+
+        // Check if there's already a pending offer for this player from this team
+        const existing = gameState.incomingOffers.find(
+            o => o.fromTeamID === aiTeam.teamID && o.targetPlayerID === target.playerID && o.status === 'pending'
+        );
+        if (existing) return;
+
+        gameState.incomingOffers.push({
+            offerId: gameState.offerIdCounter++,
+            fromTeamID: aiTeam.teamID,
+            fromTeamName: aiTeam.name,
+            targetPlayerID: target.playerID,
+            targetPlayerName: target.name,
+            targetPlayerOVR: target.overallRating,
+            targetPlayerPos: target.position,
+            offerAmount,
+            status: 'pending'
+        });
+    });
+
+    // 2. AI-to-AI transfers
+    aiTeams.forEach(buyer => {
+        // Each AI team has a small chance to buy from another AI team
+        if (Math.random() > 0.20) return;
+
+        // Calculate buyer's average squad OVR
+        const buyerPlayers = gameState.players.filter(p => p.teamID === buyer.teamID);
+        const buyerAvgOVR = buyerPlayers.length > 0
+            ? buyerPlayers.reduce((s, p) => s + p.overallRating, 0) / buyerPlayers.length
+            : 50;
+
+        // Look at all other AI teams' players
+        const otherAITeams = aiTeams.filter(t => t.teamID !== buyer.teamID);
+        for (const seller of otherAITeams) {
+            const sellerPlayers = gameState.players.filter(p => p.teamID === seller.teamID);
+            if (sellerPlayers.length <= 11) continue; // Don't buy if seller would be too thin
+
+            // Find a player better than the buyer's average
+            const candidates = sellerPlayers.filter(p => p.overallRating > buyerAvgOVR);
+            if (candidates.length === 0) continue;
+
+            const target = candidates[Math.floor(Math.random() * candidates.length)];
+            const price = target.marketValue || 1000000;
+
+            if ((buyer.transferBudget || 0) < price) continue;
+            if (Math.random() > 0.15) continue; // Only 15% chance per candidate
+
+            // Execute the transfer
+            buyer.transferBudget -= price;
+            seller.transferBudget = (seller.transferBudget || 0) + price;
+            target.teamID = buyer.teamID;
+            target.squadRole = 'Reserve';
+
+            summary.push(`${buyer.name} signed ${target.name} from ${seller.name} for $${(price / 1000000).toFixed(1)}M`);
+            break; // Only one transfer per buyer per window
+        }
+    });
+
+    return summary;
+}
+
+// UC-1 — Trigger AI transfers manually
 app.post('/api/transfers/ai-process', async (req, res) => {
     try {
-        res.json({ message: "AI Teams have conducted their transfer business." });
+        const summary = runAITransfers(req.gameState);
+        const pendingOffers = req.gameState.incomingOffers.filter(o => o.status === 'pending');
+        res.json({
+            message: "AI transfer window processed.",
+            aiTransfers: summary,
+            pendingOffersCount: pendingOffers.length
+        });
     } catch (err) { res.status(500).send("Server Error"); }
+});
+
+// Get incoming transfer offers for the player's team
+app.get('/api/transfers/inbox', async (req, res) => {
+    try {
+        const pending = req.gameState.incomingOffers.filter(o => o.status === 'pending');
+        res.json(pending);
+    } catch (err) { res.status(500).send("Server Error"); }
+});
+
+// Respond to an incoming offer: accept, reject, or counter
+app.post('/api/transfers/inbox/respond', async (req, res) => {
+    try {
+        const { offerId, action, counterAmount } = req.body;
+        const offer = req.gameState.incomingOffers.find(o => o.offerId === offerId);
+        if (!offer) return res.status(404).json({ message: "Offer not found." });
+        if (offer.status !== 'pending') return res.status(400).json({ message: "Offer already resolved." });
+
+        const playerTeamId = req.gameState.playerTeamId;
+        const playerTeam = getTeam(req.gameState, playerTeamId);
+        const buyerTeam = getTeam(req.gameState, offer.fromTeamID);
+        const player = req.gameState.players.find(p => p.playerID === offer.targetPlayerID);
+
+        if (!playerTeam || !buyerTeam || !player) {
+            return res.status(404).json({ message: "Team or player not found." });
+        }
+
+        if (action === 'accept') {
+            // Check buyer can still afford
+            if ((buyerTeam.transferBudget || 0) < offer.offerAmount) {
+                offer.status = 'rejected';
+                return res.json({ message: "Deal collapsed — buyer can no longer afford the fee.", outcome: 'collapsed' });
+            }
+            buyerTeam.transferBudget -= offer.offerAmount;
+            playerTeam.transferBudget = (playerTeam.transferBudget || 0) + offer.offerAmount;
+            player.teamID = buyerTeam.teamID;
+            player.squadRole = 'Reserve';
+            offer.status = 'accepted';
+            return res.json({
+                message: `Transfer complete! ${offer.targetPlayerName} has joined ${offer.fromTeamName}.`,
+                outcome: 'accepted'
+            });
+
+        } else if (action === 'reject') {
+            offer.status = 'rejected';
+            return res.json({ message: "Offer rejected.", outcome: 'rejected' });
+
+        } else if (action === 'counter') {
+            if (!counterAmount || counterAmount <= 0) {
+                return res.status(400).json({ message: "Invalid counter amount." });
+            }
+
+            // AI decides instantly: accept if counter <= 1.5x market value AND they can afford it
+            const marketVal = player.marketValue || 1000000;
+            const maxAcceptable = marketVal * 1.5;
+            const canAfford = (buyerTeam.transferBudget || 0) >= counterAmount;
+            // Add some randomness: 70% chance to accept if within range, 30% even if slightly above
+            const withinRange = counterAmount <= maxAcceptable;
+            const willAccept = canAfford && (withinRange || Math.random() < 0.3);
+
+            if (willAccept) {
+                buyerTeam.transferBudget -= counterAmount;
+                playerTeam.transferBudget = (playerTeam.transferBudget || 0) + counterAmount;
+                player.teamID = buyerTeam.teamID;
+                player.squadRole = 'Reserve';
+                offer.status = 'accepted';
+                offer.offerAmount = counterAmount;
+                return res.json({
+                    message: `${offer.fromTeamName} accepted your counter of $${(counterAmount / 1000000).toFixed(1)}M! ${offer.targetPlayerName} has been sold.`,
+                    outcome: 'counter_accepted'
+                });
+            } else {
+                offer.status = 'rejected';
+                const reason = !canAfford ? "They can't afford your asking price." : "They felt the price was too high.";
+                return res.json({
+                    message: `${offer.fromTeamName} rejected your counter offer. ${reason}`,
+                    outcome: 'counter_rejected'
+                });
+            }
+        } else {
+            return res.status(400).json({ message: "Invalid action. Use 'accept', 'reject', or 'counter'." });
+        }
+    } catch (err) { res.status(500).send("Server Error: " + err.message); }
 });
 
 app.get('/api/transfers/market/all', async (req, res) => {
@@ -733,6 +922,10 @@ app.post('/api/game/new', async (req, res) => {
         req.gameState.fixtures = matchInserts;
         req.gameState.active = true;
         req.gameState.managerId = manager.managerID;
+        req.gameState.playerTeamId = parseInt(teamId);
+        req.gameState.weekNumber = 0;
+        req.gameState.incomingOffers = [];
+        req.gameState.offerIdCounter = 1;
 
         res.json({ message: "Game Started & Simple Schedule Generated!", managerId: manager.managerID });
     } catch (err) {

@@ -137,6 +137,8 @@ export function PreMatchScreen() {
 
       // 2. Simulate all other matches this week
       let otherResults: any[] = [];
+      let transferActivity = false;
+      let aiTransferSummary: string[] = [];
       try {
         const weekRes = await fetch(`${API_BASE}/matches/simulate-week`, {
           method: 'POST',
@@ -149,6 +151,8 @@ export function PreMatchScreen() {
         if (weekRes.ok) {
           const weekData = await weekRes.json();
           otherResults = weekData.results || [];
+          transferActivity = weekData.transferActivity || false;
+          aiTransferSummary = weekData.aiTransferSummary || [];
         }
       } catch (e) {
         console.warn('Failed to simulate other week matches:', e);
@@ -162,9 +166,30 @@ export function PreMatchScreen() {
           resultSummary += `\n${r.homeTeamName} ${r.homeGoals} - ${r.awayGoals} ${r.awayTeamName}`;
         });
       }
+
+      // Show AI transfer summary if window opened
+      if (transferActivity && aiTransferSummary.length > 0) {
+        resultSummary += '\n\n— Transfer Activity —';
+        aiTransferSummary.forEach((t: string) => {
+          resultSummary += `\n${t}`;
+        });
+      }
       
       Alert.alert('Full Time', resultSummary, [
-          { text: 'Continue', onPress: () => navigation.goBack() }
+          { text: 'Continue', onPress: () => {
+            if (transferActivity) {
+              Alert.alert(
+                'Transfer Window Open!',
+                'Teams are making moves. Check your inbox for incoming offers on your players.',
+                [
+                  { text: 'View Inbox', onPress: () => { navigation.goBack(); setTimeout(() => navigation.navigate('Inbox', { teamId }), 100); }},
+                  { text: 'Later', onPress: () => navigation.goBack() }
+                ]
+              );
+            } else {
+              navigation.goBack();
+            }
+          }}
       ]);
     } catch (err) {
       Alert.alert('Error', 'Failed to play match.');

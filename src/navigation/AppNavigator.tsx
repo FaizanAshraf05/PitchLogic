@@ -13,6 +13,7 @@ import { ScheduleScreen } from '../screens/ScheduleScreen';
 import { TransferScreen } from '../screens/TransferScreen';
 import { PreMatchScreen } from '../screens/PreMatchScreen';
 import { FacilitiesScreen } from '../screens/FacilitiesScreen';
+import { InboxScreen } from '../screens/InboxScreen';
 
 export type RootStackParamList = {
   Title: undefined;
@@ -26,6 +27,7 @@ export type RootStackParamList = {
   Transfer: { teamId: number } | undefined;
   PreMatch: { matchId: number; teamId: number } | undefined;
   Facilities: undefined;
+  Inbox: { teamId: number } | undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -64,6 +66,7 @@ export function AppNavigator() {
         <Stack.Screen name="Transfer" component={TransferScreen} />
         <Stack.Screen name="PreMatch" component={PreMatchScreen} />
         <Stack.Screen name="Facilities" component={FacilitiesScreen} />
+        <Stack.Screen name="Inbox" component={InboxScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );
