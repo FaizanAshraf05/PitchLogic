@@ -63,7 +63,7 @@ app.get('/api/scout/players', async (req, res) => {
 app.put('/api/teams/:id/lineup', async (req, res) => {
     try {
         const teamId = req.params.id;
-        const { starters } = req.body;
+        const { starters, bench, reserves } = req.body;
 
         if (!Array.isArray(starters) || starters.length !== 11) {
             return res.status(400).send("You must select exactly 11 starting players.");
@@ -74,13 +74,19 @@ app.put('/api/teams/:id/lineup', async (req, res) => {
         await transaction.begin();
 
         try {
-            await transaction.request()
-                .input('teamId', sql.Int, teamId)
-                .query(`UPDATE Player SET squadRole = 'Bench' WHERE teamID = @teamId`);
-
             const safeStarters = starters.map(id => parseInt(id)).filter(id => !isNaN(id)).join(',');
+            const safeBench = Array.isArray(bench) ? bench.map(id => parseInt(id)).filter(id => !isNaN(id)).join(',') : '';
+            const safeReserves = Array.isArray(reserves) ? reserves.map(id => parseInt(id)).filter(id => !isNaN(id)).join(',') : '';
+
+            // Update roles efficiently based on provided arrays
             if (safeStarters) {
                 await transaction.request().query(`UPDATE Player SET squadRole = 'Starter' WHERE playerID IN (${safeStarters}) AND teamID = ${teamId}`);
+            }
+            if (safeBench) {
+                await transaction.request().query(`UPDATE Player SET squadRole = 'Bench' WHERE playerID IN (${safeBench}) AND teamID = ${teamId}`);
+            }
+            if (safeReserves) {
+                await transaction.request().query(`UPDATE Player SET squadRole = 'Reserve' WHERE playerID IN (${safeReserves}) AND teamID = ${teamId}`);
             }
 
             await transaction.commit();

@@ -159,14 +159,8 @@ export function SquadScreen() {
       const data: Player[] = await response.json();
       
       let dbStarters = data.filter(p => p.squadRole === 'Starter');
-      let others = data.filter(p => p.squadRole !== 'Starter');
-      
-      if (dbStarters.length < 11) {
-        const needed = 11 - dbStarters.length;
-        const sortedOthers = [...others].sort((a, b) => b.overallRating - a.overallRating);
-        dbStarters = [...dbStarters, ...sortedOthers.slice(0, needed)];
-        others = sortedOthers.slice(needed);
-      }
+      let dbBench = data.filter(p => p.squadRole === 'Bench');
+      let dbReserves = data.filter(p => p.squadRole === 'Reserve');
 
       const newStarters = new Array(11).fill(null);
       const unassigned: Player[] = [];
@@ -188,14 +182,13 @@ export function SquadScreen() {
          if (emptyIdx !== -1) {
             newStarters[emptyIdx] = p;
          } else {
-            others.unshift(p);
+            dbBench.unshift(p);
          }
       });
       
-      others.sort((a, b) => b.overallRating - a.overallRating);
       setStarters(newStarters);
-      setSubs(others.slice(0, 7));
-      setReserves(others.slice(7));
+      setSubs(dbBench);
+      setReserves(dbReserves);
       setLoading(false);
     } catch (error) {
       console.error(error);
@@ -204,10 +197,12 @@ export function SquadScreen() {
     }
   };
 
-  const saveLineup = async (currentStarters: (Player | null)[]) => {
+  const saveLineup = async (currentStarters: (Player | null)[], currentSubs: Player[], currentReserves: Player[]) => {
     try {
       setSaving(true);
       const starterIds = currentStarters.map(p => p?.playerID).filter(id => id !== undefined);
+      const subIds = currentSubs.map(p => p.playerID);
+      const reserveIds = currentReserves.map(p => p.playerID);
       
       if (starterIds.length !== 11) {
         Alert.alert('Error', 'Lineup must have exactly 11 players.');
@@ -219,7 +214,7 @@ export function SquadScreen() {
       const response = await fetch(`${API_BASE}/teams/${teamId}/lineup`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ starters: starterIds }),
+        body: JSON.stringify({ starters: starterIds, bench: subIds, reserves: reserveIds }),
       });
 
       if (!response.ok) throw new Error('Failed to save lineup');
@@ -273,8 +268,8 @@ export function SquadScreen() {
     setSelectedSlot(null);
 
     // If a starter was modified, save to DB
-    if (selectedSlot.type === 'starter' || type === 'starter') {
-      saveLineup(newStarters);
+    if (selectedSlot.type === 'starter' || type === 'starter' || selectedSlot.type === 'sub' || type === 'sub') {
+      saveLineup(newStarters, newSubs, newReserves);
     }
   };
 
