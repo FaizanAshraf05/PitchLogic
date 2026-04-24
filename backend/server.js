@@ -42,7 +42,7 @@ app.get('/api/teams', async (req, res) => {
             `);
             return res.json(result.recordset);
         }
-        
+
         // Return teams enriched with managerName
         const result = gameState.teams.map(t => {
             const manager = gameState.managers.find(m => m.managerID == t.managerID);
@@ -54,14 +54,14 @@ app.get('/api/teams', async (req, res) => {
                 managerName: manager ? manager.username : null
             };
         }).sort((a, b) => b.transferBudget - a.transferBudget);
-        
+
         res.json(result);
     } catch (err) { res.status(500).send("Server Error"); }
 });
 
 app.get('/api/teams/:id/players', async (req, res) => {
     try {
-        if (!gameState.active) return res.status(400).json({message: "Game not started"});
+        if (!gameState.active) return res.status(400).json({ message: "Game not started" });
         const teamPlayers = gameState.players
             .filter(p => p.teamID == req.params.id)
             .sort((a, b) => b.overallRating - a.overallRating);
@@ -72,7 +72,7 @@ app.get('/api/teams/:id/players', async (req, res) => {
 // UC-05
 app.get('/api/league/standings', async (req, res) => {
     try {
-        if (!gameState.active) return res.status(400).json({message: "Game not started"});
+        if (!gameState.active) return res.status(400).json({ message: "Game not started" });
         const standings = gameState.teams
             .map(t => ({ teamID: t.teamID, name: t.name, points: t.points, goalDifference: t.goalDifference }))
             .sort((a, b) => {
@@ -87,8 +87,8 @@ app.get('/api/league/standings', async (req, res) => {
 app.get('/api/scout/players', async (req, res) => {
     try {
         const { position } = req.query;
-        if (!gameState.active) return res.status(400).json({message: "Game not started"});
-        
+        if (!gameState.active) return res.status(400).json({ message: "Game not started" });
+
         let freeAgents = gameState.players.filter(p => p.teamID === null);
         if (position) {
             freeAgents = freeAgents.filter(p => p.position && p.position.includes(position));
@@ -205,7 +205,7 @@ app.post('/api/transfers/ai-process', async (req, res) => {
 
 app.get('/api/transfers/market/all', async (req, res) => {
     try {
-        if (!gameState.active) return res.status(400).json({message: "Game not started"});
+        if (!gameState.active) return res.status(400).json({ message: "Game not started" });
         const market = gameState.players.map(p => {
             const team = getTeam(p.teamID);
             return {
@@ -226,7 +226,7 @@ app.get('/api/transfers/market/all', async (req, res) => {
 
 app.get('/api/teams/:id/next-match', async (req, res) => {
     try {
-        if (!gameState.active) return res.status(400).json({message: "Game not started"});
+        if (!gameState.active) return res.status(400).json({ message: "Game not started" });
         const teamId = parseInt(req.params.id);
         const match = gameState.fixtures.find(m => (m.homeTeamID === teamId || m.awayTeamID === teamId) && m.isSimulated === 0);
         res.json(match || { message: "No upcoming matches." });
@@ -235,7 +235,7 @@ app.get('/api/teams/:id/next-match', async (req, res) => {
 
 app.get('/api/teams/:id/schedule', async (req, res) => {
     try {
-        if (!gameState.active) return res.status(400).json({message: "Game not started"});
+        if (!gameState.active) return res.status(400).json({ message: "Game not started" });
         const teamId = parseInt(req.params.id);
         const schedule = gameState.fixtures
             .filter(m => m.homeTeamID === teamId || m.awayTeamID === teamId)
@@ -258,12 +258,12 @@ app.get('/api/teams/:id/schedule', async (req, res) => {
 
 app.post('/api/transfers/buy', async (req, res) => {
     try {
-        if (!gameState.active) return res.status(400).json({message: "Game not started"});
+        if (!gameState.active) return res.status(400).json({ message: "Game not started" });
         const { buyerTeamId, playerId, bidAmount } = req.body;
-        
+
         const player = gameState.players.find(p => p.playerID == playerId);
         const buyer = getTeam(buyerTeamId);
-        
+
         if (!player || !buyer) return res.status(404).send("Player or Team not found.");
 
         if (bidAmount < player.marketValue) {
@@ -275,7 +275,7 @@ app.post('/api/transfers/buy', async (req, res) => {
 
         // Deduct from buyer
         buyer.transferBudget -= bidAmount;
-        
+
         // Add to seller
         const seller = getTeam(player.teamID);
         if (seller) {
@@ -303,11 +303,11 @@ app.post('/api/game/new', async (req, res) => {
         const teamsRes = await pool.request().query('SELECT * FROM Team');
         const playersRes = await pool.request().query('SELECT * FROM Player');
         const managersRes = await pool.request().query('SELECT * FROM ClubManager');
-        
+
         gameState.teams = teamsRes.recordset;
         gameState.players = playersRes.recordset;
         gameState.managers = managersRes.recordset;
-        
+
         // Ensure goalDifference and points exist
         gameState.teams.forEach(t => {
             t.points = t.points || 0;
@@ -362,7 +362,7 @@ app.post('/api/game/new', async (req, res) => {
                 });
             }
         }
-        
+
         gameState.fixtures = matchInserts;
         gameState.active = true;
         gameState.managerId = manager.managerID;
