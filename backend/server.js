@@ -291,6 +291,66 @@ app.get('/api/teams/:id/schedule', async (req, res) => {
     }
 });
 
+app.post('/api/transfers/buy', async (req, res) => {
+    try {
+        const { buyerTeamId, playerId, bidAmount } = req.body;
+        const pool = await poolPromise;
+
+        const checkQuery = await pool.request()
+            .input('buyerId', sql.Int, buyerTeamId)
+            .input('playerId', sql.Int, playerId)
+            .query(`
+                SELECT 
+                    p.marketValue, 
+                    p.teamID AS sellerTeamId, 
+                    t.transferBudget AS buyerBudget
+                FROM Player p
+                LEFT JOIN Team t ON t.teamID = @buyerId
+                WHERE p.playerID = @playerId
+            `);
+
+        const details = checkQuery.recordset[0];
+        if (!details) return res.status(404).send("Player or Team not found.");
+
+        if (bidAmount < details.marketValue) {
+            return res.status(400).json({ message: "Bid rejected! Offer is below the player's market value." });
+        }
+        if (details.buyerBudget < bidAmount) {
+            return res.status(400).json({ message: "Transfer failed. Your club does not have enough budget." });
+        }
+
+        const transaction = new sql.Transaction(pool);
+        await transaction.begin();
+        try {
+            await transaction.request()
+                .input('cost', sql.Int, bidAmount)
+                .input('buyerId', sql.Int, buyerTeamId)
+                .query(`UPDATE Team SET transferBudget = transferBudget - @cost WHERE teamID = @buyerId`);
+
+            if (details.sellerTeamId !== null) {
+                await transaction.request()
+                    .input('cost', sql.Int, bidAmount)
+                    .input('sellerId', sql.Int, details.sellerTeamId)
+                    .query(`UPDATE Team SET transferBudget = transferBudget + @cost WHERE teamID = @sellerId`);
+            }
+            await transaction.request()
+                .input('buyerId', sql.Int, buyerTeamId)
+                .input('playerId', sql.Int, playerId)
+                .query(`UPDATE Player SET teamID = @buyerId, squadRole = 'Reserve' WHERE playerID = @playerId`);
+
+            await transaction.commit();
+            res.json({ message: "Transfer successful! The player has joined your reserves." });
+
+        } catch (txErr) {
+            await transaction.rollback();
+            throw txErr;
+        }
+    } catch (err) {
+        console.error("Transfer Error:", err);
+        res.status(500).send("Server Error: " + err.message);
+    }
+});
+
 //Start New Game
 app.post('/api/game/new', async (req, res) => {
     try {
