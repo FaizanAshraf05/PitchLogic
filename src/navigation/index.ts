@@ -1,2 +1,1 @@
-export { AppNavigator } from './AppNavigator';
-export type { RootStackParamList, MainTabParamList } from './AppNavigator';
+export { AppNavigator, type RootStackParamList } from './AppNavigator';

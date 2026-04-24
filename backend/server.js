@@ -14,36 +14,61 @@ const poolPromise = sql.connect(config)
     })
     .catch(err => console.log('Database Connection Failed! Bad Config: ', err));
 
+// Global In-Memory Game State
+let gameState = {
+    active: false,
+    managerId: null,
+    teams: [],
+    players: [],
+    fixtures: [],
+    managers: []
+};
+
+// HELPER FUNCTION: Get Team by ID
+const getTeam = (id) => gameState.teams.find(t => t.teamID == id);
+
 // Get Teams
 app.get('/api/teams', async (req, res) => {
     try {
-        const pool = await poolPromise;
-        const result = await pool.request().query(`
-            SELECT t.teamID, t.name AS teamName, t.transferBudget, t.formation, c.username AS managerName
-            FROM Team t
-            LEFT JOIN ClubManager c ON t.managerID = c.managerID
-            ORDER BY t.transferBudget DESC
-        `);
-        res.json(result.recordset);
+        if (!gameState.active) return res.status(400).json({message: "Game not started"});
+        
+        // Return teams enriched with managerName
+        const result = gameState.teams.map(t => {
+            const manager = gameState.managers.find(m => m.managerID == t.managerID);
+            return {
+                teamID: t.teamID,
+                teamName: t.name,
+                transferBudget: t.transferBudget,
+                formation: t.formation,
+                managerName: manager ? manager.username : null
+            };
+        }).sort((a, b) => b.transferBudget - a.transferBudget);
+        
+        res.json(result);
     } catch (err) { res.status(500).send("Server Error"); }
 });
 
 app.get('/api/teams/:id/players', async (req, res) => {
     try {
-        const pool = await poolPromise;
-        const result = await pool.request()
-            .input('teamId', sql.Int, req.params.id)
-            .query(`SELECT * FROM Player WHERE teamID = @teamId ORDER BY overallRating DESC`);
-        res.json(result.recordset);
+        if (!gameState.active) return res.status(400).json({message: "Game not started"});
+        const teamPlayers = gameState.players
+            .filter(p => p.teamID == req.params.id)
+            .sort((a, b) => b.overallRating - a.overallRating);
+        res.json(teamPlayers);
     } catch (err) { res.status(500).send("Server Error"); }
 });
 
 // UC-05
 app.get('/api/league/standings', async (req, res) => {
     try {
-        const pool = await poolPromise;
-        const result = await pool.request().query(`SELECT teamID, name, points, goalDifference FROM Team ORDER BY points DESC, goalDifference DESC`);
-        res.json(result.recordset);
+        if (!gameState.active) return res.status(400).json({message: "Game not started"});
+        const standings = gameState.teams
+            .map(t => ({ teamID: t.teamID, name: t.name, points: t.points, goalDifference: t.goalDifference }))
+            .sort((a, b) => {
+                if (b.points !== a.points) return b.points - a.points;
+                return b.goalDifference - a.goalDifference;
+            });
+        res.json(standings);
     } catch (err) { res.status(500).send("Server Error"); }
 });
 
@@ -51,102 +76,63 @@ app.get('/api/league/standings', async (req, res) => {
 app.get('/api/scout/players', async (req, res) => {
     try {
         const { position } = req.query;
-        const pool = await poolPromise;
-        const result = await pool.request()
-            .input('position', sql.VarChar, position ? `%${position}%` : '%%')
-            .query(`SELECT * FROM Player WHERE teamID IS NULL AND position LIKE @position ORDER BY overallRating DESC`);
-        res.json(result.recordset);
+        if (!gameState.active) return res.status(400).json({message: "Game not started"});
+        
+        let freeAgents = gameState.players.filter(p => p.teamID === null);
+        if (position) {
+            freeAgents = freeAgents.filter(p => p.position && p.position.includes(position));
+        }
+        res.json(freeAgents.sort((a, b) => b.overallRating - a.overallRating));
     } catch (err) { res.status(500).send("Server Error"); }
 });
 
 // UC-01
 app.put('/api/teams/:id/lineup', async (req, res) => {
     try {
-        const teamId = req.params.id;
+        const teamId = parseInt(req.params.id);
         const { starters, bench, reserves } = req.body;
 
         if (!Array.isArray(starters) || starters.length !== 11) {
             return res.status(400).send("You must select exactly 11 starting players.");
         }
 
-        const pool = await poolPromise;
-        const transaction = new sql.Transaction(pool);
-        await transaction.begin();
+        const safeStarters = starters.map(id => parseInt(id)).filter(id => !isNaN(id));
+        const safeBench = Array.isArray(bench) ? bench.map(id => parseInt(id)).filter(id => !isNaN(id)) : [];
+        const safeReserves = Array.isArray(reserves) ? reserves.map(id => parseInt(id)).filter(id => !isNaN(id)) : [];
 
-        try {
-            const safeStarters = starters.map(id => parseInt(id)).filter(id => !isNaN(id)).join(',');
-            const safeBench = Array.isArray(bench) ? bench.map(id => parseInt(id)).filter(id => !isNaN(id)).join(',') : '';
-            const safeReserves = Array.isArray(reserves) ? reserves.map(id => parseInt(id)).filter(id => !isNaN(id)).join(',') : '';
+        gameState.players.forEach(p => {
+            if (p.teamID === teamId) {
+                if (safeStarters.includes(p.playerID)) p.squadRole = 'Starter';
+                else if (safeBench.includes(p.playerID)) p.squadRole = 'Bench';
+                else if (safeReserves.includes(p.playerID)) p.squadRole = 'Reserve';
+            }
+        });
 
-            // Update roles efficiently based on provided arrays
-            if (safeStarters) {
-                await transaction.request().query(`UPDATE Player SET squadRole = 'Starter' WHERE playerID IN (${safeStarters}) AND teamID = ${teamId}`);
-            }
-            if (safeBench) {
-                await transaction.request().query(`UPDATE Player SET squadRole = 'Bench' WHERE playerID IN (${safeBench}) AND teamID = ${teamId}`);
-            }
-            if (safeReserves) {
-                await transaction.request().query(`UPDATE Player SET squadRole = 'Reserve' WHERE playerID IN (${safeReserves}) AND teamID = ${teamId}`);
-            }
-
-            await transaction.commit();
-            res.json({ message: "Lineup saved successfully!" });
-        } catch (txErr) {
-            await transaction.rollback();
-            throw txErr;
-        }
+        res.json({ message: "Lineup saved successfully!" });
     } catch (err) { res.status(500).send(err.message); }
 });
 
 // UC-02
 app.put('/api/teams/:id/tactics', async (req, res) => {
     try {
+        const teamId = parseInt(req.params.id);
         const { newFormation, newStyle } = req.body;
-        const pool = await poolPromise;
-        await pool.request()
-            .input('formation', sql.VarChar, newFormation)
-            .input('style', sql.VarChar, newStyle)
-            .input('teamId', sql.Int, req.params.id)
-            .query(`UPDATE Team SET formation = @formation, teamStyle = @style WHERE teamID = @teamId`);
+        const team = getTeam(teamId);
+        if (team) {
+            team.formation = newFormation;
+            team.teamStyle = newStyle;
+        }
         res.json({ message: "Tactics updated successfully!" });
     } catch (err) { res.status(500).send("Server Error"); }
-});
-
-// UC-03
-app.post('/api/transfers/buy', async (req, res) => {
-    try {
-        const { teamId, playerId, cost } = req.body;
-        const pool = await poolPromise;
-        const transaction = new sql.Transaction(pool);
-        await transaction.begin();
-
-        try {
-            await transaction.request()
-                .input('cost', sql.Int, cost)
-                .input('teamId', sql.Int, teamId)
-                .query(`UPDATE Team SET transferBudget = transferBudget - @cost WHERE teamID = @teamId`);
-
-            await transaction.request()
-                .input('teamId', sql.Int, teamId)
-                .input('playerId', sql.Int, playerId)
-                .query(`UPDATE Player SET teamID = @teamId, squadRole = 'Bench' WHERE playerID = @playerId`);
-
-            await transaction.commit();
-            res.json({ message: "Transfer successful!" });
-        } catch (txErr) {
-            await transaction.rollback();
-            throw txErr;
-        }
-    } catch (err) { res.status(500).send(err.message); }
 });
 
 // UC-04
 app.put('/api/teams/:id/training', async (req, res) => {
     try {
-        const pool = await poolPromise;
-        await pool.request()
-            .input('teamId', sql.Int, req.params.id)
-            .query(`UPDATE Player SET morale = 100 WHERE teamID = @teamId`);
+        const teamId = parseInt(req.params.id);
+        gameState.players.forEach(p => {
+            if (p.teamID === teamId) p.morale = 100;
+        });
         res.json({ message: "Training complete. Squad morale is maximized!" });
     } catch (err) { res.status(500).send("Server Error"); }
 });
@@ -154,8 +140,7 @@ app.put('/api/teams/:id/training', async (req, res) => {
 // UC-06
 app.post('/api/game/advance-week', async (req, res) => {
     try {
-        const pool = await poolPromise;
-        await pool.request().query(`UPDATE Player SET stamina = 100`);
+        gameState.players.forEach(p => p.stamina = 100);
         res.json({ message: "Week advanced. Stamina restored." });
     } catch (err) { res.status(500).send("Server Error"); }
 });
@@ -163,12 +148,12 @@ app.post('/api/game/advance-week', async (req, res) => {
 // UC-08
 app.post('/api/teams/:id/facilities/upgrade', async (req, res) => {
     try {
+        const teamId = parseInt(req.params.id);
         const { cost } = req.body;
-        const pool = await poolPromise;
-        await pool.request()
-            .input('cost', sql.Int, cost)
-            .input('teamId', sql.Int, req.params.id)
-            .query(`UPDATE Team SET transferBudget = transferBudget - @cost WHERE teamID = @teamId`);
+        const team = getTeam(teamId);
+        if (team) {
+            team.transferBudget -= cost;
+        }
         res.json({ message: "Facility upgraded!" });
     } catch (err) { res.status(500).send("Server Error"); }
 });
@@ -177,44 +162,26 @@ app.post('/api/teams/:id/facilities/upgrade', async (req, res) => {
 app.post('/api/matches/simulate', async (req, res) => {
     try {
         const { homeTeamId, awayTeamId, homeGoals, awayGoals } = req.body;
-        const pool = await poolPromise;
-        const transaction = new sql.Transaction(pool);
-        await transaction.begin();
+        const homeTeam = getTeam(homeTeamId);
+        const awayTeam = getTeam(awayTeamId);
 
-        try {
+        if (homeTeam && awayTeam) {
             if (homeGoals > awayGoals) {
                 const diff = homeGoals - awayGoals;
-                await transaction.request()
-                    .input('homeId', sql.Int, homeTeamId)
-                    .input('diff', sql.Int, diff)
-                    .query(`UPDATE Team SET points = points + 3, goalDifference = goalDifference + @diff WHERE teamID = @homeId`);
-                await transaction.request()
-                    .input('awayId', sql.Int, awayTeamId)
-                    .input('diff', sql.Int, diff)
-                    .query(`UPDATE Team SET goalDifference = goalDifference - @diff WHERE teamID = @awayId`);
+                homeTeam.points = (homeTeam.points || 0) + 3;
+                homeTeam.goalDifference = (homeTeam.goalDifference || 0) + diff;
+                awayTeam.goalDifference = (awayTeam.goalDifference || 0) - diff;
             } else if (awayGoals > homeGoals) {
                 const diff = awayGoals - homeGoals;
-                await transaction.request()
-                    .input('awayId', sql.Int, awayTeamId)
-                    .input('diff', sql.Int, diff)
-                    .query(`UPDATE Team SET points = points + 3, goalDifference = goalDifference + @diff WHERE teamID = @awayId`);
-                await transaction.request()
-                    .input('homeId', sql.Int, homeTeamId)
-                    .input('diff', sql.Int, diff)
-                    .query(`UPDATE Team SET goalDifference = goalDifference - @diff WHERE teamID = @homeId`);
+                awayTeam.points = (awayTeam.points || 0) + 3;
+                awayTeam.goalDifference = (awayTeam.goalDifference || 0) + diff;
+                homeTeam.goalDifference = (homeTeam.goalDifference || 0) - diff;
             } else {
-                // Draw
-                await transaction.request()
-                    .input('homeId', sql.Int, homeTeamId)
-                    .input('awayId', sql.Int, awayTeamId)
-                    .query(`UPDATE Team SET points = points + 1 WHERE teamID IN (@homeId, @awayId)`);
+                homeTeam.points = (homeTeam.points || 0) + 1;
+                awayTeam.points = (awayTeam.points || 0) + 1;
             }
-            await transaction.commit();
-            res.json({ message: "Match Simulated and Standings Updated!" });
-        } catch (txErr) {
-            await transaction.rollback();
-            throw txErr;
         }
+        res.json({ message: "Match Simulated and Standings Updated!" });
     } catch (err) { res.status(500).send(err.message); }
 });
 
@@ -227,20 +194,19 @@ app.post('/api/transfers/ai-process', async (req, res) => {
 
 app.get('/api/transfers/market/all', async (req, res) => {
     try {
-        const pool = await poolPromise;
-        const result = await pool.request().query(`
-            SELECT 
-                p.playerID, 
-                p.name, 
-                p.position, 
-                p.overallRating, 
-                p.marketValue, 
-                ISNULL(t.name, 'Free Agent') AS currentTeam
-            FROM Player p
-            LEFT JOIN Team t ON p.teamID = t.teamID
-            ORDER BY p.overallRating DESC
-        `);
-        res.json(result.recordset);
+        if (!gameState.active) return res.status(400).json({message: "Game not started"});
+        const market = gameState.players.map(p => {
+            const team = getTeam(p.teamID);
+            return {
+                playerID: p.playerID,
+                name: p.name,
+                position: p.position,
+                overallRating: p.overallRating,
+                marketValue: p.marketValue,
+                currentTeam: team ? team.name : 'Free Agent'
+            };
+        }).sort((a, b) => b.overallRating - a.overallRating);
+        res.json(market);
     } catch (err) {
         console.error("Transfer Market Error:", err);
         res.status(500).send("Server Error: " + err.message);
@@ -249,42 +215,30 @@ app.get('/api/transfers/market/all', async (req, res) => {
 
 app.get('/api/teams/:id/next-match', async (req, res) => {
     try {
-        const pool = await poolPromise;
-        const result = await pool.request()
-            .input('teamId', sql.Int, req.params.id)
-            .query(`
-                SELECT TOP 1 * FROM MatchFixture 
-                WHERE (homeTeamID = @teamId OR awayTeamID = @teamId) 
-                AND isSimulated = 0 
-                ORDER BY matchDate ASC
-            `);
-        res.json(result.recordset[0] || { message: "No upcoming matches." });
+        if (!gameState.active) return res.status(400).json({message: "Game not started"});
+        const teamId = parseInt(req.params.id);
+        const match = gameState.fixtures.find(m => (m.homeTeamID === teamId || m.awayTeamID === teamId) && m.isSimulated === 0);
+        res.json(match || { message: "No upcoming matches." });
     } catch (err) { res.status(500).send("Server Error"); }
 });
 
 app.get('/api/teams/:id/schedule', async (req, res) => {
     try {
-        const pool = await poolPromise;
-        const result = await pool.request()
-            .input('teamId', sql.Int, req.params.id)
-            .query(`
-                SELECT 
-                    m.matchID, 
-                    m.matchDate, 
-                    m.homeScore, 
-                    m.awayScore, 
-                    m.isSimulated,
-                    m.homeTeamID,
-                    ht.name AS homeTeamName,
-                    m.awayTeamID,
-                    at.name AS awayTeamName
-                FROM MatchFixture m
-                JOIN Team ht ON m.homeTeamID = ht.teamID
-                JOIN Team at ON m.awayTeamID = at.teamID
-                WHERE m.homeTeamID = @teamId OR m.awayTeamID = @teamId
-                ORDER BY m.matchDate ASC
-            `);
-        res.json(result.recordset);
+        if (!gameState.active) return res.status(400).json({message: "Game not started"});
+        const teamId = parseInt(req.params.id);
+        const schedule = gameState.fixtures
+            .filter(m => m.homeTeamID === teamId || m.awayTeamID === teamId)
+            .map(m => {
+                const homeTeam = getTeam(m.homeTeamID);
+                const awayTeam = getTeam(m.awayTeamID);
+                return {
+                    ...m,
+                    homeTeamName: homeTeam ? homeTeam.name : 'Unknown',
+                    awayTeamName: awayTeam ? awayTeam.name : 'Unknown'
+                };
+            })
+            .sort((a, b) => new Date(a.matchDate) - new Date(b.matchDate));
+        res.json(schedule);
     } catch (err) {
         console.error("Schedule Error:", err);
         res.status(500).send("Server Error: " + err.message);
@@ -293,58 +247,35 @@ app.get('/api/teams/:id/schedule', async (req, res) => {
 
 app.post('/api/transfers/buy', async (req, res) => {
     try {
+        if (!gameState.active) return res.status(400).json({message: "Game not started"});
         const { buyerTeamId, playerId, bidAmount } = req.body;
-        const pool = await poolPromise;
+        
+        const player = gameState.players.find(p => p.playerID == playerId);
+        const buyer = getTeam(buyerTeamId);
+        
+        if (!player || !buyer) return res.status(404).send("Player or Team not found.");
 
-        const checkQuery = await pool.request()
-            .input('buyerId', sql.Int, buyerTeamId)
-            .input('playerId', sql.Int, playerId)
-            .query(`
-                SELECT 
-                    p.marketValue, 
-                    p.teamID AS sellerTeamId, 
-                    t.transferBudget AS buyerBudget
-                FROM Player p
-                LEFT JOIN Team t ON t.teamID = @buyerId
-                WHERE p.playerID = @playerId
-            `);
-
-        const details = checkQuery.recordset[0];
-        if (!details) return res.status(404).send("Player or Team not found.");
-
-        if (bidAmount < details.marketValue) {
+        if (bidAmount < player.marketValue) {
             return res.status(400).json({ message: "Bid rejected! Offer is below the player's market value." });
         }
-        if (details.buyerBudget < bidAmount) {
+        if (buyer.transferBudget < bidAmount) {
             return res.status(400).json({ message: "Transfer failed. Your club does not have enough budget." });
         }
 
-        const transaction = new sql.Transaction(pool);
-        await transaction.begin();
-        try {
-            await transaction.request()
-                .input('cost', sql.Int, bidAmount)
-                .input('buyerId', sql.Int, buyerTeamId)
-                .query(`UPDATE Team SET transferBudget = transferBudget - @cost WHERE teamID = @buyerId`);
-
-            if (details.sellerTeamId !== null) {
-                await transaction.request()
-                    .input('cost', sql.Int, bidAmount)
-                    .input('sellerId', sql.Int, details.sellerTeamId)
-                    .query(`UPDATE Team SET transferBudget = transferBudget + @cost WHERE teamID = @sellerId`);
-            }
-            await transaction.request()
-                .input('buyerId', sql.Int, buyerTeamId)
-                .input('playerId', sql.Int, playerId)
-                .query(`UPDATE Player SET teamID = @buyerId, squadRole = 'Reserve' WHERE playerID = @playerId`);
-
-            await transaction.commit();
-            res.json({ message: "Transfer successful! The player has joined your reserves." });
-
-        } catch (txErr) {
-            await transaction.rollback();
-            throw txErr;
+        // Deduct from buyer
+        buyer.transferBudget -= bidAmount;
+        
+        // Add to seller
+        const seller = getTeam(player.teamID);
+        if (seller) {
+            seller.transferBudget += bidAmount;
         }
+
+        // Move player
+        player.teamID = parseInt(buyerTeamId);
+        player.squadRole = 'Reserve';
+
+        res.json({ message: "Transfer successful! The player has joined your reserves." });
     } catch (err) {
         console.error("Transfer Error:", err);
         res.status(500).send("Server Error: " + err.message);
@@ -356,79 +287,82 @@ app.post('/api/game/new', async (req, res) => {
     try {
         const { managerName, teamId } = req.body;
         const pool = await poolPromise;
-        const transaction = new sql.Transaction(pool);
-        await transaction.begin();
 
-        try {
-            // create maanger
-            const checkManager = await transaction.request()
-                .input('managerName', sql.VarChar, managerName)
-                .query(`SELECT managerID FROM ClubManager WHERE username = @managerName`);
+        // Fetch Everything from Database into Memory
+        const teamsRes = await pool.request().query('SELECT * FROM Team');
+        const playersRes = await pool.request().query('SELECT * FROM Player');
+        const managersRes = await pool.request().query('SELECT * FROM ClubManager');
+        
+        gameState.teams = teamsRes.recordset;
+        gameState.players = playersRes.recordset;
+        gameState.managers = managersRes.recordset;
+        
+        // Ensure goalDifference and points exist
+        gameState.teams.forEach(t => {
+            t.points = t.points || 0;
+            t.goalDifference = t.goalDifference || 0;
+        });
 
-            let newManagerId;
-
-            if (checkManager.recordset.length > 0) {
-                newManagerId = checkManager.recordset[0].managerID;
-                console.log(`Manager ${managerName} returning to the game.`);
-            } else {
-                const managerResult = await transaction.request()
-                    .input('managerName', sql.VarChar, managerName)
-                    .query(`
-                        INSERT INTO ClubManager (username, isHuman) 
-                        VALUES (@managerName, 1);
-                        SELECT SCOPE_IDENTITY() AS managerID;
-                    `);
-                newManagerId = managerResult.recordset[0].managerID;
-                console.log(`New Manager ${managerName} created.`);
-            }
-            await transaction.request()
-                .input('managerId', sql.Int, newManagerId)
-                .input('teamId', sql.Int, teamId)
-                .query(`UPDATE Team SET managerID = @managerId WHERE teamID = @teamId`);
-
-            await transaction.request().query(`DELETE FROM MatchFixture`);
-
-            const teamsResult = await transaction.request().query(`SELECT teamID FROM Team`);
-            let teams = teamsResult.recordset.map(t => t.teamID);
-
-            let matchInserts = [];
-            let seasonStartDate = new Date('2026-08-15');
-            const weeksToSimulate = 38;
-
-            for (let week = 0; week < weeksToSimulate; week++) {
-                let matchDateObj = new Date(seasonStartDate);
-                matchDateObj.setDate(seasonStartDate.getDate() + (week * 7));
-                let sqlDate = matchDateObj.toISOString().split('T')[0];
-
-                let shuffledTeams = [...teams].sort(() => 0.5 - Math.random());
-
-                for (let i = 0; i < shuffledTeams.length - 1; i += 2) {
-                    const home = shuffledTeams[i];
-                    const away = shuffledTeams[i + 1];
-                    matchInserts.push(`('${sqlDate}', ${home}, ${away}, 0, 0, 0, 0, 0)`);
-                }
-            }
-
-            if (matchInserts.length > 0) {
-                const bulkInsertQuery = `
-                    INSERT INTO MatchFixture (matchDate, homeTeamID, awayTeamID, homeScore, awayScore, isSimulated, homeReady, awayReady)
-                    VALUES ${matchInserts.join(', ')}
-                `;
-                await transaction.request().query(bulkInsertQuery);
-            }
-
-            await transaction.commit();
-            res.json({ message: "Game Started & Simple Schedule Generated!", managerId: newManagerId });
-
-        } catch (txErr) {
-            await transaction.rollback();
-            throw txErr;
+        // Setup Manager Logic IN MEMORY
+        let manager = gameState.managers.find(m => m.username === managerName);
+        if (!manager) {
+            // Assign a fake ID for memory purposes
+            const newId = gameState.managers.length > 0 ? Math.max(...gameState.managers.map(m => m.managerID)) + 1 : 1;
+            manager = { managerID: newId, username: managerName, isHuman: 1 };
+            gameState.managers.push(manager);
+            console.log(`New Manager ${managerName} created in memory.`);
+        } else {
+            console.log(`Manager ${managerName} returning to the game.`);
         }
+
+        // Assign team to manager in memory
+        const team = getTeam(teamId);
+        if (team) {
+            team.managerID = manager.managerID;
+        }
+
+        // Generate Fixtures IN MEMORY
+        let matchInserts = [];
+        let teamsList = gameState.teams.map(t => t.teamID);
+        let seasonStartDate = new Date('2026-08-15');
+        const weeksToSimulate = 38;
+        let matchIdCounter = 1;
+
+        for (let week = 0; week < weeksToSimulate; week++) {
+            let matchDateObj = new Date(seasonStartDate);
+            matchDateObj.setDate(seasonStartDate.getDate() + (week * 7));
+            let sqlDate = matchDateObj.toISOString().split('T')[0];
+
+            let shuffledTeams = [...teamsList].sort(() => 0.5 - Math.random());
+
+            for (let i = 0; i < shuffledTeams.length - 1; i += 2) {
+                const home = shuffledTeams[i];
+                const away = shuffledTeams[i + 1];
+                matchInserts.push({
+                    matchID: matchIdCounter++,
+                    matchDate: sqlDate,
+                    homeTeamID: home,
+                    awayTeamID: away,
+                    homeScore: 0,
+                    awayScore: 0,
+                    isSimulated: 0,
+                    homeReady: 0,
+                    awayReady: 0
+                });
+            }
+        }
+        
+        gameState.fixtures = matchInserts;
+        gameState.active = true;
+        gameState.managerId = manager.managerID;
+
+        res.json({ message: "Game Started & Simple Schedule Generated!", managerId: manager.managerID });
     } catch (err) {
         console.error(err);
         res.status(500).send("Failed to start game: " + err.message);
     }
 });
+
 const PORT = 3000;
 app.listen(PORT, () => {
     console.log(`Pitch Logic API running on http://localhost:${PORT}`);

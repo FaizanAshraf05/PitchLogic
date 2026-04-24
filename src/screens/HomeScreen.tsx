@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import { Shadow } from 'react-native-shadow-2';
 import { Colors, Spacing, Typography, BorderRadius } from '../theme';
 
@@ -56,9 +56,11 @@ export function HomeScreen() {
   const teamId = route.params?.teamId || 10; // Fallback to Man City
   const managerNameUpper = managerName.toUpperCase();
 
-  useEffect(() => {
-    fetchData();
-  }, [teamId]);
+  useFocusEffect(
+    useCallback(() => {
+      fetchData();
+    }, [teamId])
+  );
 
   const fetchData = async () => {
     try {
@@ -100,7 +102,7 @@ export function HomeScreen() {
 
   const actions = [
     { id: 'squad', title: 'Squad', icon: 'account-group', route: 'Squad' },
-    { id: 'transfers', title: 'Transfers', icon: 'swap-horizontal', route: 'Transfers' },
+    { id: 'transfers', title: 'Transfers', icon: 'swap-horizontal', route: 'Transfer' },
     { id: 'training', title: 'Training', icon: 'flag', route: 'Training' },
     { id: 'league_table', title: 'League Table', icon: 'table', route: 'League' },
     { id: 'statistics', title: 'Statistics', icon: 'chart-bar', route: 'Statistics' },

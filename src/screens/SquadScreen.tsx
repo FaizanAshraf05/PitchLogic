@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import { Colors, Spacing, Typography, BorderRadius } from '../theme';
 
 const { width } = Dimensions.get('window');
@@ -144,9 +144,11 @@ export function SquadScreen() {
   const [showFormationDropdown, setShowFormationDropdown] = useState(false);
   const activeFormation = FORMATIONS[selectedFormationKey];
 
-  useEffect(() => {
-    fetchPlayers();
-  }, [teamId]);
+  useFocusEffect(
+    useCallback(() => {
+      fetchPlayers();
+    }, [teamId])
+  );
 
   const fetchPlayers = async () => {
     try {
@@ -563,7 +565,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#111',
+    backgroundColor: '#FFF',
     justifyContent: 'center',
     alignItems: 'center',
     position: 'relative',
