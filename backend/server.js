@@ -30,7 +30,18 @@ const getTeam = (id) => gameState.teams.find(t => t.teamID == id);
 // Get Teams
 app.get('/api/teams', async (req, res) => {
     try {
-        if (!gameState.active) return res.status(400).json({message: "Game not started"});
+        if (!gameState.active) {
+            // If the game hasn't started yet, the TeamSelectScreen still needs the list of teams!
+            // Fetch directly from the SQL database.
+            const pool = await poolPromise;
+            const result = await pool.request().query(`
+                SELECT t.teamID, t.name AS teamName, t.transferBudget, t.formation, c.username AS managerName
+                FROM Team t
+                LEFT JOIN ClubManager c ON t.managerID = c.managerID
+                ORDER BY t.transferBudget DESC
+            `);
+            return res.json(result.recordset);
+        }
         
         // Return teams enriched with managerName
         const result = gameState.teams.map(t => {

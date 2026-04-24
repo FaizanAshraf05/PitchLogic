@@ -111,7 +111,10 @@ export function HomeScreen() {
 
   const formatCurrency = (value: number | null) => {
     if (value === null) return '$0';
-    return '$' + value.toLocaleString();
+    if (value >= 1000000000) return `$${(value / 1000000000).toFixed(1)}B`;
+    if (value >= 1000000) return `$${(value / 1000000).toFixed(1)}M`;
+    if (value >= 1000) return `$${(value / 1000).toFixed(1)}K`;
+    return `$${value}`;
   };
 
   const renderNextMatch = () => {

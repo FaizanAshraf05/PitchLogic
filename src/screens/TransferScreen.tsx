@@ -115,6 +115,14 @@ export function TransferScreen() {
     );
   }
 
+  const formatCurrency = (value: number | null) => {
+    if (value === null) return '$0';
+    if (value >= 1000000000) return `$${(value / 1000000000).toFixed(1)}B`;
+    if (value >= 1000000) return `$${(value / 1000000).toFixed(1)}M`;
+    if (value >= 1000) return `$${(value / 1000).toFixed(1)}K`;
+    return `$${value}`;
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <Image
@@ -214,7 +222,7 @@ export function TransferScreen() {
                   <View style={styles.bidColumn}>
                     <Text style={styles.bidColumnLabel}>Recommended Bid</Text>
                     <View style={styles.recommendedBidPill}>
-                      <Text style={styles.recommendedBidText}>${selectedPlayer.marketValue}</Text>
+                      <Text style={styles.recommendedBidText}>{formatCurrency(selectedPlayer.marketValue)}</Text>
                     </View>
                   </View>
 
