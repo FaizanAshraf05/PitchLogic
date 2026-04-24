@@ -189,6 +189,9 @@ app.post('/api/matches/simulate', async (req, res) => {
             homeTeam.matchesPlayed = (homeTeam.matchesPlayed || 0) + 1;
             awayTeam.matchesPlayed = (awayTeam.matchesPlayed || 0) + 1;
 
+            homeTeam.goalsFor = (homeTeam.goalsFor || 0) + homeGoals;
+            awayTeam.goalsFor = (awayTeam.goalsFor || 0) + awayGoals;
+
             if (homeGoals > awayGoals) {
                 const diff = homeGoals - awayGoals;
                 homeTeam.wins = (homeTeam.wins || 0) + 1;
@@ -243,6 +246,45 @@ app.get('/api/transfers/market/all', async (req, res) => {
         console.error("Transfer Market Error:", err);
         res.status(500).send("Server Error: " + err.message);
     }
+});
+
+app.get('/api/matches/:id/preview', async (req, res) => {
+    try {
+        if (!gameState.active) return res.status(400).json({ message: "Game not started" });
+        const matchId = parseInt(req.params.id);
+        const match = gameState.fixtures.find(m => m.matchID === matchId);
+        if (!match) return res.status(404).json({ message: "Match not found." });
+
+        const homeTeam = getTeam(match.homeTeamID);
+        const awayTeam = getTeam(match.awayTeamID);
+
+        const getTeamStats = (team) => {
+            if (!team) return null;
+            const players = gameState.players.filter(p => p.teamID === team.teamID);
+            const overallRating = players.length > 0 
+                ? Math.round(players.reduce((sum, p) => sum + p.overallRating, 0) / players.length)
+                : 0;
+            const avgGoals = team.matchesPlayed > 0 
+                ? (team.goalsFor / team.matchesPlayed).toFixed(1) 
+                : "-";
+
+            return {
+                teamID: team.teamID,
+                name: team.name,
+                matchesPlayed: team.matchesPlayed || 0,
+                wins: team.wins || 0,
+                losses: team.losses || 0,
+                avgGoals,
+                overallRating
+            };
+        };
+
+        res.json({
+            match,
+            homeTeam: getTeamStats(homeTeam),
+            awayTeam: getTeamStats(awayTeam)
+        });
+    } catch (err) { res.status(500).send("Server Error"); }
 });
 
 app.get('/api/teams/:id/next-match', async (req, res) => {
@@ -337,6 +379,7 @@ app.post('/api/game/new', async (req, res) => {
             t.wins = t.wins || 0;
             t.draws = t.draws || 0;
             t.losses = t.losses || 0;
+            t.goalsFor = t.goalsFor || 0;
         });
 
         // Setup Manager Logic IN MEMORY

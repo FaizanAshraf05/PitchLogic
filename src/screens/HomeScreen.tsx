@@ -9,6 +9,7 @@ import {
   Dimensions,
   ScrollView,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -97,7 +98,11 @@ export function HomeScreen() {
   };
 
   const handleAdvance = () => {
-    // Navigate or trigger advance action
+    if (nextMatch) {
+      navigation.navigate('PreMatch', { matchId: nextMatch.matchID, teamId });
+    } else {
+      Alert.alert('No Matches', 'There are no upcoming matches in your schedule.');
+    }
   };
 
   const actions = [
