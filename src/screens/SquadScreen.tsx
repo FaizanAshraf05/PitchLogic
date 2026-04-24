@@ -179,12 +179,15 @@ export function SquadScreen() {
         if (!placed) unassigned.push(p);
       });
       
+      let lineupChanged = false;
       unassigned.forEach(p => {
          const emptyIdx = newStarters.findIndex(s => s === null);
          if (emptyIdx !== -1) {
             newStarters[emptyIdx] = p;
+            lineupChanged = true;
          } else {
             dbBench.unshift(p);
+            lineupChanged = true;
          }
       });
       
@@ -192,6 +195,10 @@ export function SquadScreen() {
       setSubs(dbBench);
       setReserves(dbReserves);
       setLoading(false);
+
+      if (lineupChanged) {
+        saveLineup(newStarters, dbBench, dbReserves);
+      }
     } catch (error) {
       console.error(error);
       setLoading(false);

@@ -74,7 +74,16 @@ app.get('/api/league/standings', async (req, res) => {
     try {
         if (!gameState.active) return res.status(400).json({ message: "Game not started" });
         const standings = gameState.teams
-            .map(t => ({ teamID: t.teamID, name: t.name, points: t.points, goalDifference: t.goalDifference }))
+            .map(t => ({
+                teamID: t.teamID,
+                name: t.name,
+                matchesPlayed: t.matchesPlayed || 0,
+                wins: t.wins || 0,
+                draws: t.draws || 0,
+                losses: t.losses || 0,
+                points: t.points || 0,
+                goalDifference: t.goalDifference || 0
+            }))
             .sort((a, b) => {
                 if (b.points !== a.points) return b.points - a.points;
                 return b.goalDifference - a.goalDifference;
@@ -115,7 +124,7 @@ app.put('/api/teams/:id/lineup', async (req, res) => {
             if (p.teamID === teamId) {
                 if (safeStarters.includes(p.playerID)) p.squadRole = 'Starter';
                 else if (safeBench.includes(p.playerID)) p.squadRole = 'Bench';
-                else if (safeReserves.includes(p.playerID)) p.squadRole = 'Reserve';
+                else p.squadRole = 'Reserve'; // Default to Reserve if not in starter/bench
             }
         });
 
@@ -177,17 +186,29 @@ app.post('/api/matches/simulate', async (req, res) => {
         const awayTeam = getTeam(awayTeamId);
 
         if (homeTeam && awayTeam) {
+            homeTeam.matchesPlayed = (homeTeam.matchesPlayed || 0) + 1;
+            awayTeam.matchesPlayed = (awayTeam.matchesPlayed || 0) + 1;
+
             if (homeGoals > awayGoals) {
                 const diff = homeGoals - awayGoals;
+                homeTeam.wins = (homeTeam.wins || 0) + 1;
+                awayTeam.losses = (awayTeam.losses || 0) + 1;
+
                 homeTeam.points = (homeTeam.points || 0) + 3;
                 homeTeam.goalDifference = (homeTeam.goalDifference || 0) + diff;
                 awayTeam.goalDifference = (awayTeam.goalDifference || 0) - diff;
             } else if (awayGoals > homeGoals) {
                 const diff = awayGoals - homeGoals;
+                awayTeam.wins = (awayTeam.wins || 0) + 1;
+                homeTeam.losses = (homeTeam.losses || 0) + 1;
+
                 awayTeam.points = (awayTeam.points || 0) + 3;
                 awayTeam.goalDifference = (awayTeam.goalDifference || 0) + diff;
                 homeTeam.goalDifference = (homeTeam.goalDifference || 0) - diff;
             } else {
+                homeTeam.draws = (homeTeam.draws || 0) + 1;
+                awayTeam.draws = (awayTeam.draws || 0) + 1;
+
                 homeTeam.points = (homeTeam.points || 0) + 1;
                 awayTeam.points = (awayTeam.points || 0) + 1;
             }
@@ -312,6 +333,10 @@ app.post('/api/game/new', async (req, res) => {
         gameState.teams.forEach(t => {
             t.points = t.points || 0;
             t.goalDifference = t.goalDifference || 0;
+            t.matchesPlayed = t.matchesPlayed || 0;
+            t.wins = t.wins || 0;
+            t.draws = t.draws || 0;
+            t.losses = t.losses || 0;
         });
 
         // Setup Manager Logic IN MEMORY
