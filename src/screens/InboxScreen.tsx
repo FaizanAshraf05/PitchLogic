@@ -116,15 +116,10 @@ export function InboxScreen() {
 
     return (
       <View key={offer.offerId} style={styles.offerCard}>
-        {/* Bidding Team */}
-        <View style={styles.offerHeader}>
-          <MaterialCommunityIcons name="shield-outline" size={22} color={Colors.green} />
-          <Text style={styles.teamName}>{offer.fromTeamName}</Text>
-        </View>
-
         {/* Player Info */}
         <View style={styles.playerInfoRow}>
           <View style={styles.playerInfoLeft}>
+            <Text style={styles.teamName}>{offer.fromTeamName}</Text>
             <Text style={styles.playerName}>{offer.targetPlayerName}</Text>
             <View style={styles.tagRow}>
               <Text style={styles.tagText}>{offer.targetPlayerPos}</Text>
@@ -372,12 +367,6 @@ const styles = StyleSheet.create({
   },
   offerAmountBox: {
     alignItems: 'center',
-    backgroundColor: 'rgba(46, 204, 113, 0.15)',
-    borderRadius: 12,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(46, 204, 113, 0.3)',
   },
   offerAmountLabel: {
     color: Colors.textDim,
