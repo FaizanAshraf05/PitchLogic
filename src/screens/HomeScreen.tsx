@@ -189,7 +189,7 @@ export function HomeScreen() {
         </View>
 
         <View style={styles.datePill}>
-          <Text style={styles.dateText}>{dateStr} | STADIUM</Text>
+          <Text style={styles.dateText}>{dateStr}</Text>
         </View>
       </View>
     );

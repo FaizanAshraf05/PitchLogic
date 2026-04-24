@@ -20,16 +20,16 @@ const { width } = Dimensions.get('window');
 const API_BASE = 'https://obliged-preamble-amplifier.ngrok-free.dev/api';
 
 const POSITIONS = [
-  { key: 'GK', label: 'Goalkeeper', icon: 'shield-half-full', color: '#e67e22' },
-  { key: 'CB', label: 'Centre-Back', icon: 'shield-account', color: '#3498db' },
-  { key: 'LB', label: 'Left-Back', icon: 'arrow-left-bold', color: '#2ecc71' },
-  { key: 'RB', label: 'Right-Back', icon: 'arrow-right-bold', color: '#2ecc71' },
-  { key: 'CDM', label: 'Def. Mid', icon: 'account-lock', color: '#9b59b6' },
-  { key: 'CM', label: 'Centre-Mid', icon: 'account-switch', color: '#1abc9c' },
-  { key: 'CAM', label: 'Att. Mid', icon: 'star-circle', color: '#f39c12' },
-  { key: 'LW', label: 'Left Wing', icon: 'chevron-double-left', color: '#e74c3c' },
-  { key: 'RW', label: 'Right Wing', icon: 'chevron-double-right', color: '#e74c3c' },
-  { key: 'ST', label: 'Striker', icon: 'soccer', color: '#f0c040' },
+  { key: 'GK' },
+  { key: 'CB' },
+  { key: 'LB' },
+  { key: 'RB' },
+  { key: 'CDM' },
+  { key: 'CM' },
+  { key: 'CAM' },
+  { key: 'LW' },
+  { key: 'RW' },
+  { key: 'ST' },
 ];
 
 interface TrainingProgramme {
@@ -128,7 +128,7 @@ export function TrainingScreen() {
         <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
           <MaterialCommunityIcons name="keyboard-return" size={28} color={Colors.green} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Training Camp</Text>
+        <Text style={styles.headerTitle}>Training</Text>
       </View>
 
       {/* Active Training Banner */}
@@ -156,8 +156,8 @@ export function TrainingScreen() {
         </Text>
         <Text style={styles.instructionSub}>
           {activeProgramme
-            ? 'Complete the remaining matches to receive the +2 rating boost.'
-            : 'Choose a position group. All players in that position will receive a +2 overall rating boost after 3 matches.'}
+            ? 'Complete the remaining matches to receive the rating boost.'
+            : 'Choose a position group. All players in that position will receive an overall rating boost after 3 matches.'}
         </Text>
       </View>
 
@@ -179,7 +179,6 @@ export function TrainingScreen() {
             >
 
               <Text style={[styles.posKey, isSelected && { color: '#FFF' }]}>{pos.key}</Text>
-              <Text style={[styles.posLabel, isSelected && { color: '#ccc' }]}>{pos.label}</Text>
             </TouchableOpacity>
           );
         })}
@@ -329,13 +328,6 @@ const styles = StyleSheet.create({
     color: '#ccc',
     fontSize: 14,
     fontFamily: Typography.fontFamily.bold,
-  },
-  posLabel: {
-    color: '#666',
-    fontSize: 10,
-    fontFamily: Typography.fontFamily.regular,
-    marginTop: 2,
-    textAlign: 'center',
   },
 
   // Bottom
