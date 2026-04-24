@@ -333,6 +333,10 @@ app.post('/api/matches/simulate', async (req, res) => {
         homeTeam.goalsAgainst = (homeTeam.goalsAgainst || 0) + awayGoals;
         awayTeam.goalsAgainst = (awayTeam.goalsAgainst || 0) + homeGoals;
 
+        // Budget: +5M per team for playing
+        homeTeam.transferBudget = (homeTeam.transferBudget || 0) + 5000000;
+        awayTeam.transferBudget = (awayTeam.transferBudget || 0) + 5000000;
+
         if (homeGoals > awayGoals) {
             const diff = homeGoals - awayGoals;
             homeTeam.wins = (homeTeam.wins || 0) + 1;
@@ -341,6 +345,8 @@ app.post('/api/matches/simulate', async (req, res) => {
             homeTeam.points = (homeTeam.points || 0) + 3;
             homeTeam.goalDifference = (homeTeam.goalDifference || 0) + diff;
             awayTeam.goalDifference = (awayTeam.goalDifference || 0) - diff;
+            // win bonus: 2.5M
+            homeTeam.transferBudget += 2500000;
         } else if (awayGoals > homeGoals) {
             const diff = awayGoals - homeGoals;
             awayTeam.wins = (awayTeam.wins || 0) + 1;
@@ -349,6 +355,8 @@ app.post('/api/matches/simulate', async (req, res) => {
             awayTeam.points = (awayTeam.points || 0) + 3;
             awayTeam.goalDifference = (awayTeam.goalDifference || 0) + diff;
             homeTeam.goalDifference = (homeTeam.goalDifference || 0) - diff;
+            // win bonus: 2.5M
+            awayTeam.transferBudget += 2500000;
         } else {
             homeTeam.draws = (homeTeam.draws || 0) + 1;
             awayTeam.draws = (awayTeam.draws || 0) + 1;
@@ -440,6 +448,10 @@ app.post('/api/matches/simulate-week', async (req, res) => {
             homeTeam.goalsAgainst = (homeTeam.goalsAgainst || 0) + awayGoals;
             awayTeam.goalsAgainst = (awayTeam.goalsAgainst || 0) + homeGoals;
 
+            // Budget: +5M per team for playing
+            homeTeam.transferBudget = (homeTeam.transferBudget || 0) + 5000000;
+            awayTeam.transferBudget = (awayTeam.transferBudget || 0) + 5000000;
+
             if (homeGoals > awayGoals) {
                 const diff = homeGoals - awayGoals;
                 homeTeam.wins = (homeTeam.wins || 0) + 1;
@@ -447,6 +459,8 @@ app.post('/api/matches/simulate-week', async (req, res) => {
                 homeTeam.points = (homeTeam.points || 0) + 3;
                 homeTeam.goalDifference = (homeTeam.goalDifference || 0) + diff;
                 awayTeam.goalDifference = (awayTeam.goalDifference || 0) - diff;
+                // +2.5M win bonus
+                homeTeam.transferBudget += 2500000;
             } else if (awayGoals > homeGoals) {
                 const diff = awayGoals - homeGoals;
                 awayTeam.wins = (awayTeam.wins || 0) + 1;
@@ -454,6 +468,8 @@ app.post('/api/matches/simulate-week', async (req, res) => {
                 awayTeam.points = (awayTeam.points || 0) + 3;
                 awayTeam.goalDifference = (awayTeam.goalDifference || 0) + diff;
                 homeTeam.goalDifference = (homeTeam.goalDifference || 0) - diff;
+                // +2.5M win bonus
+                awayTeam.transferBudget += 2500000;
             } else {
                 homeTeam.draws = (homeTeam.draws || 0) + 1;
                 awayTeam.draws = (awayTeam.draws || 0) + 1;
