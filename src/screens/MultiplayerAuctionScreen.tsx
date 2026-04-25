@@ -250,20 +250,16 @@ export function MultiplayerAuctionScreen() {
           {activeAuction && (
             <View style={styles.auctionCard}>
               <View style={styles.auctionCardHeader}>
-                <View style={styles.liveDot} />
                 <Text style={styles.liveText}>LIVE AUCTION</Text>
-                <View style={[styles.timerBadge, timeLeft < 15000 && styles.timerBadgeUrgent]}>
-                  <MaterialCommunityIcons name="timer-outline" size={14} color={timeLeft < 15000 ? '#ff4444' : Colors.green} />
-                  <Text style={[styles.timerText, timeLeft < 15000 && styles.timerTextUrgent]}>
-                    {fmtTime(timeLeft)}
-                  </Text>
-                </View>
+                <Text style={[styles.timerText, timeLeft < 15000 && styles.timerTextUrgent]}>
+                  {fmtTime(timeLeft)}
+                </Text>
               </View>
 
               <View style={styles.playerRow}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.playerName}>{activeAuction.playerName}</Text>
-                  <Text style={styles.playerMeta}>{activeAuction.playerPosition} · OVR {activeAuction.playerOVR} · MV {fmt(activeAuction.playerMarketValue)}</Text>
+                  <Text style={styles.playerMeta}>{activeAuction.playerPosition} · OVR {activeAuction.playerOVR} · {fmt(activeAuction.playerMarketValue)}</Text>
                 </View>
               </View>
 
@@ -271,7 +267,6 @@ export function MultiplayerAuctionScreen() {
 
               {topBid ? (
                 <View style={styles.topBidRow}>
-                  <MaterialCommunityIcons name="trophy-outline" size={16} color={Colors.green} />
                   <Text style={styles.topBidText}>
                     <Text style={styles.topBidAmount}>{fmt(topBid.amount)}</Text>
                     {'  by  '}
@@ -437,11 +432,6 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.md,
     gap: Spacing.sm,
   },
-  liveDot: {
-    width: 8, height: 8,
-    borderRadius: 4,
-    backgroundColor: '#ff4444',
-  },
   liveText: {
     fontSize: Typography.fontSize.xs,
     color: '#ff4444',
@@ -449,12 +439,6 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
     flex: 1,
   },
-  timerBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  timerBadgeUrgent: {},
   timerText: { fontSize: 16, color: Colors.green, fontWeight: '900', fontVariant: ['tabular-nums'] },
   timerTextUrgent: { color: '#ff4444' },
   playerRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, marginBottom: Spacing.md },
