@@ -133,6 +133,16 @@ app.put('/api/teams/:id/lineup', async (req, res) => {
         const safeBench = Array.isArray(bench) ? bench.map(id => parseInt(id)).filter(id => !isNaN(id)) : [];
         const safeReserves = Array.isArray(reserves) ? reserves.map(id => parseInt(id)).filter(id => !isNaN(id)) : [];
 
+        // Block injured players from being starters
+        const injuredStarter = req.gameState.players.find(p =>
+            safeStarters.includes(p.playerID) && p.injuredWeeksRemaining && p.injuredWeeksRemaining > 0
+        );
+        if (injuredStarter) {
+            return res.status(400).json({
+                message: `${injuredStarter.name} is injured for ${injuredStarter.injuredWeeksRemaining} more week(s) and cannot start.`
+            });
+        }
+
         req.gameState.players.forEach(p => {
             if (p.teamID === teamId) {
                 const starterIdx = safeStarters.indexOf(p.playerID);
@@ -388,6 +398,55 @@ app.post('/api/matches/simulate', async (req, res) => {
             }
         });
 
+        // Fatigue & Injury system (player's team only)
+        const playerTeamId = req.gameState.playerTeamId;
+        let fatigueInfo = { newFatigued: [], injuries: [] };
+
+        if (playerTeamId && (homeTeamId === playerTeamId || awayTeamId === playerTeamId)) {
+            const teamPlayers = req.gameState.players.filter(p => p.teamID === playerTeamId);
+            const currentStarters = teamPlayers.filter(p => p.squadRole === 'Starter');
+
+            // 1. Check if previously fatigued starters are still in the XI → injury roll
+            const fatiguedStarters = currentStarters.filter(p => p.isFatigued);
+            fatiguedStarters.forEach(p => {
+                const injuryChance = 0.60 + (Math.random() * 0.10); // 60-70%
+                if (Math.random() < injuryChance) {
+                    const weeks = Math.floor(Math.random() * 5) + 2; // 2-6 weeks
+                    p.injuredWeeksRemaining = weeks;
+                    p.squadRole = 'Reserve';
+                    p.isFatigued = false;
+                    fatigueInfo.injuries.push({ name: p.name, position: p.position, weeks });
+                    console.log(`INJURY: ${p.name} injured for ${weeks} weeks.`);
+                }
+            });
+
+            // 2. Decrement injury counters for all team players
+            teamPlayers.forEach(p => {
+                if (p.injuredWeeksRemaining && p.injuredWeeksRemaining > 0) {
+                    p.injuredWeeksRemaining -= 1;
+                    if (p.injuredWeeksRemaining <= 0) {
+                        p.injuredWeeksRemaining = 0;
+                        console.log(`RECOVERY: ${p.name} has recovered from injury.`);
+                    }
+                }
+            });
+
+            // 3. Clear all previous fatigue
+            teamPlayers.forEach(p => { p.isFatigued = false; });
+
+            // 4. Pick 1-2 new random fatigued starters (excluding injured)
+            const healthyStarters = req.gameState.players.filter(
+                p => p.teamID === playerTeamId && p.squadRole === 'Starter' && !p.injuredWeeksRemaining
+            );
+            const fatigueCount = Math.random() < 0.35 ? 2 : 1; // 35% chance of 2
+            const shuffled = [...healthyStarters].sort(() => 0.5 - Math.random());
+            const toFatigue = shuffled.slice(0, Math.min(fatigueCount, shuffled.length));
+            toFatigue.forEach(p => {
+                p.isFatigued = true;
+                fatigueInfo.newFatigued.push({ playerID: p.playerID, name: p.name, position: p.position });
+            });
+        }
+
         res.json({
             message: "Match Simulated and Standings Updated!",
             result: {
@@ -396,9 +455,28 @@ app.post('/api/matches/simulate', async (req, res) => {
                 homeGoals,
                 awayGoals,
                 matchId: fixture ? fixture.matchID : null
-            }
+            },
+            fatigueInfo
         });
     } catch (err) { res.status(500).send(err.message); }
+});
+
+// Get fatigue & injury status for a team
+app.get('/api/teams/:id/fatigue-status', async (req, res) => {
+    try {
+        const teamId = parseInt(req.params.id);
+        const teamPlayers = req.gameState.players.filter(p => p.teamID === teamId);
+
+        const fatiguedPlayers = teamPlayers
+            .filter(p => p.isFatigued)
+            .map(p => ({ playerID: p.playerID, name: p.name, position: p.position }));
+
+        const injuredPlayers = teamPlayers
+            .filter(p => p.injuredWeeksRemaining && p.injuredWeeksRemaining > 0)
+            .map(p => ({ playerID: p.playerID, name: p.name, position: p.position, weeksRemaining: p.injuredWeeksRemaining }));
+
+        res.json({ fatiguedPlayers, injuredPlayers });
+    } catch (err) { res.status(500).send("Server Error"); }
 });
 
 // Simulate ai matches in the same game-week

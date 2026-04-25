@@ -134,6 +134,8 @@ export function PreMatchScreen() {
         })
       });
       if (!res.ok) throw new Error('Simulation failed');
+      const matchResult = await res.json();
+      const fatigueInfo = matchResult.fatigueInfo || { newFatigued: [], injuries: [] };
 
       // 2. Simulate all other matches this week
       let otherResults: any[] = [];
@@ -172,6 +174,20 @@ export function PreMatchScreen() {
         resultSummary += '\n\n— Transfer Activity —';
         aiTransferSummary.forEach((t: string) => {
           resultSummary += `\n${t}`;
+        });
+      }
+
+      // Fatigue & Injury warnings
+      if (fatigueInfo.injuries.length > 0) {
+        resultSummary += '\n\n🚑 INJURIES';
+        fatigueInfo.injuries.forEach((inj: any) => {
+          resultSummary += `\n${inj.name} (${inj.position}) — out for ${inj.weeks} weeks`;
+        });
+      }
+      if (fatigueInfo.newFatigued.length > 0) {
+        resultSummary += '\n\n⚠️ FATIGUE WARNING';
+        fatigueInfo.newFatigued.forEach((f: any) => {
+          resultSummary += `\n${f.name} (${f.position}) — sub out before next match!`;
         });
       }
       

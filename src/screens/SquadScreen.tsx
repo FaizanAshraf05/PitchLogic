@@ -25,6 +25,8 @@ interface Player {
   overallRating: number;
   squadRole: 'Starter' | 'Bench' | string | null;
   squadPositionIndex?: number;
+  isFatigued?: boolean;
+  injuredWeeksRemaining?: number;
 }
 
 const POS_GROUPS: Record<string, string[]> = {
@@ -145,9 +147,14 @@ export function SquadScreen() {
   const [showFormationDropdown, setShowFormationDropdown] = useState(false);
   const activeFormation = FORMATIONS[selectedFormationKey];
 
+  const [fatiguedIds, setFatiguedIds] = useState<number[]>([]);
+  const [injuredPlayers, setInjuredPlayers] = useState<{playerID: number; name: string; position: string; weeksRemaining: number}[]>([]);
+  const injuredIds = injuredPlayers.map(p => p.playerID);
+
   useFocusEffect(
     useCallback(() => {
       fetchPlayers();
+      fetchFatigueStatus();
     }, [teamId])
   );
 
@@ -231,6 +238,23 @@ export function SquadScreen() {
     }
   };
 
+  const fetchFatigueStatus = async () => {
+    try {
+      const API_BASE = 'https://obliged-preamble-amplifier.ngrok-free.dev/api';
+      const managerName = route.params?.managerName || navigation.getState()?.routes.find((r: any) => r.name === 'Main')?.params?.managerName || 'default';
+      const response = await fetch(`${API_BASE}/teams/${teamId}/fatigue-status`, {
+        headers: { 'x-manager-name': managerName }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setFatiguedIds((data.fatiguedPlayers || []).map((p: any) => p.playerID));
+        setInjuredPlayers(data.injuredPlayers || []);
+      }
+    } catch (error) {
+      console.error('Error fetching fatigue status:', error);
+    }
+  };
+
   const saveLineup = async (currentStarters: (Player | null)[], currentSubs: Player[], currentReserves: Player[]) => {
     try {
       setSaving(true);
@@ -311,8 +335,44 @@ export function SquadScreen() {
       if (t === 'reserve' && p) newReserves[i] = p;
     };
 
+    // Block injured player from being placed as starter
     const player1 = getPlayer(selectedSlot.type, selectedSlot.index);
     const player2 = getPlayer(type, index);
+
+    // If swapping an injured player INTO the starting XI, block it
+    if (type === 'starter' && player1 && injuredIds.includes(player1.playerID)) {
+      Alert.alert('Injured', `${player1.name} is injured for ${injuredPlayers.find(p => p.playerID === player1.playerID)?.weeksRemaining} more week(s) and cannot start.`);
+      setSelectedSlot(null);
+      return;
+    }
+    if (selectedSlot.type === 'starter' && player2 && injuredIds.includes(player2.playerID)) {
+      // Moving an injured player from bench/reserve into starter slot via swap target - this is actually fine
+      // because the injured player would be moving OUT. But if the selected slot is a non-starter and target is starter:
+    }
+    // If a non-starter injured player is being moved to starter position
+    if (type === 'starter' && selectedSlot.type !== 'starter' && player1 && injuredIds.includes(player1.playerID)) {
+      Alert.alert('Injured', `${player1.name} is injured and cannot start.`);
+      setSelectedSlot(null);
+      return;
+    }
+    if (selectedSlot.type === 'starter' && type !== 'starter') {
+      // Moving starter out to bench/reserve - always ok
+    }
+    // Block: bench/reserve injured player being swapped to starter
+    if (selectedSlot.type !== 'starter' && type === 'starter') {
+      if (player1 && injuredIds.includes(player1.playerID)) {
+        Alert.alert('Injured', `${player1.name} is injured and cannot start.`);
+        setSelectedSlot(null);
+        return;
+      }
+    }
+    if (type !== 'starter' && selectedSlot.type === 'starter') {
+      if (player2 && injuredIds.includes(player2.playerID)) {
+        Alert.alert('Injured', `${player2.name} is injured and cannot start.`);
+        setSelectedSlot(null);
+        return;
+      }
+    }
 
     setPlayer(selectedSlot.type, selectedSlot.index, player2);
     setPlayer(type, index, player1);
@@ -352,6 +412,8 @@ export function SquadScreen() {
     const effectiveRating = player 
       ? Math.max(1, player.overallRating - (!isBench ? getRatingDrop(player.position, positionLabel) : 0))
       : 0;
+    const isFatigued = player ? fatiguedIds.includes(player.playerID) : false;
+    const isInjured = player ? injuredIds.includes(player.playerID) : false;
 
     return (
       <TouchableOpacity 
@@ -359,12 +421,17 @@ export function SquadScreen() {
         onPress={onPress}
         activeOpacity={0.7}
       >
-        <Text style={styles.nodeName} numberOfLines={1}>{name}</Text>
-        <View style={styles.iconCircle}>
-          <MaterialCommunityIcons name="account" size={32} color="#000" />
+        <Text style={[styles.nodeName, isFatigued && styles.nodeNameFatigued, isInjured && styles.nodeNameInjured]} numberOfLines={1}>{name}</Text>
+        <View style={[styles.iconCircle, isInjured && styles.iconCircleInjured]}>
+          <MaterialCommunityIcons name="account" size={32} color={isInjured ? '#999' : '#000'} />
           {player && (
-            <View style={styles.ovrBadge}>
+            <View style={[styles.ovrBadge, isInjured && { backgroundColor: Colors.red }]}>
               <Text style={styles.ovrBadgeText}>{effectiveRating}</Text>
+            </View>
+          )}
+          {isInjured && (
+            <View style={styles.injuryOverlay}>
+              <MaterialCommunityIcons name="bandage" size={16} color={Colors.red} />
             </View>
           )}
         </View>
@@ -403,6 +470,22 @@ export function SquadScreen() {
           <Text style={styles.ovrValue}>{calculateOVR()}</Text>
           {saving && <ActivityIndicator size="small" color={Colors.green} style={{ marginLeft: 10 }} />}
         </View>
+
+        {/* Fatigue Warning Bar */}
+        {fatiguedIds.length > 0 && (
+          <View style={styles.fatigueBar}>
+            <MaterialCommunityIcons name="alert" size={18} color="#FFF" />
+            <Text style={styles.fatigueBarText}>
+              {(() => {
+                const names = starters
+                  .filter((p): p is Player => p !== null && fatiguedIds.includes(p.playerID))
+                  .map(p => `${p.name.split(' ').pop()} (${p.position})`);
+                if (names.length === 0) return 'Fatigued player has been subbed out ✓';
+                return `FATIGUED: ${names.join(', ')} — Sub out or risk injury!`;
+              })()}
+            </Text>
+          </View>
+        )}
 
         {/* The Pitch */}
         <View style={styles.pitchContainer}>
@@ -492,6 +575,20 @@ export function SquadScreen() {
             })}
           </View>
         </View>
+
+        {/* Injured Players List */}
+        {injuredPlayers.length > 0 && (
+          <View style={styles.injuredCard}>
+            <Text style={styles.injuredTitle}>INJURED</Text>
+            {injuredPlayers.map(p => (
+              <View key={p.playerID} style={styles.injuredRow}>
+                <MaterialCommunityIcons name="bandage" size={16} color={Colors.red} />
+                <Text style={styles.injuredName}>{p.name} ({p.position})</Text>
+                <Text style={styles.injuredWeeks}>{p.weeksRemaining} week{p.weeksRemaining !== 1 ? 's' : ''}</Text>
+              </View>
+            ))}
+          </View>
+        )}
 
       </ScrollView>
     </SafeAreaView>
@@ -732,5 +829,69 @@ const styles = StyleSheet.create({
   },
   dropdownItemTextActive: {
     color: Colors.green,
+  },
+  fatigueBar: {
+    backgroundColor: 'rgba(231, 76, 60, 0.85)',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  fatigueBarText: {
+    color: '#FFF',
+    fontSize: 12,
+    fontWeight: 'bold',
+    flex: 1,
+  },
+  nodeNameFatigued: {
+    backgroundColor: 'rgba(231, 76, 60, 0.7)',
+    color: '#FFF',
+  },
+  nodeNameInjured: {
+    backgroundColor: 'rgba(231, 76, 60, 0.9)',
+    color: '#FFF',
+  },
+  iconCircleInjured: {
+    backgroundColor: '#ddd',
+    borderColor: Colors.red,
+  },
+  injuryOverlay: {
+    position: 'absolute',
+    bottom: -4,
+    left: -4,
+  },
+  injuredCard: {
+    backgroundColor: 'rgba(231, 76, 60, 0.15)',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(231, 76, 60, 0.3)',
+    padding: 16,
+    marginTop: 16,
+  },
+  injuredTitle: {
+    color: Colors.red,
+    fontWeight: 'bold',
+    fontSize: 14,
+    letterSpacing: 1,
+    marginBottom: 10,
+  },
+  injuredRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+    gap: 8,
+  },
+  injuredName: {
+    color: '#FFF',
+    fontSize: 14,
+    fontWeight: '600',
+    flex: 1,
+  },
+  injuredWeeks: {
+    color: Colors.red,
+    fontSize: 13,
+    fontWeight: 'bold',
   },
 });
