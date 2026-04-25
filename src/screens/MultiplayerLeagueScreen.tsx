@@ -39,12 +39,20 @@ interface PendingInvite {
   status: string;
 }
 
+interface ActiveMatch {
+  matchId: number;
+  homeManager: string;
+  awayManager: string;
+  status: string;
+}
+
 interface League {
   code: string;
   hostManagerName: string;
   status: string;
   players: MPPlayer[];
   pendingInvites: PendingInvite[];
+  activeMatches: ActiveMatch[];
 }
 
 export function MultiplayerLeagueScreen() {
@@ -57,6 +65,7 @@ export function MultiplayerLeagueScreen() {
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const inviteAlertShown = useRef(false);
+  const outgoingNavigated = useRef(false);
 
   const fetchLeague = useCallback(async () => {
     try {
@@ -65,6 +74,24 @@ export function MultiplayerLeagueScreen() {
       const data: League = await res.json();
       setLeague(data);
       setLoading(false);
+
+      // Check if an outgoing invite was accepted — navigate the challenger to PreMatch
+      if (!outgoingNavigated.current) {
+        const accepted = data.pendingInvites.find(
+          i => i.fromManager === managerName && i.status === 'accepted'
+        );
+        if (accepted) {
+          const match = data.activeMatches.find(
+            m => (m.homeManager === managerName || m.awayManager === managerName) && m.status === 'waiting'
+          );
+          if (match) {
+            outgoingNavigated.current = true;
+            if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+            navigation.navigate('MultiplayerPreMatch', { matchId: match.matchId, leagueCode: code, managerName });
+            return;
+          }
+        }
+      }
 
       // Check for incoming invites
       const incoming = data.pendingInvites.find(
@@ -126,6 +153,7 @@ export function MultiplayerLeagueScreen() {
   useFocusEffect(
     useCallback(() => {
       inviteAlertShown.current = false;
+      outgoingNavigated.current = false;
       fetchLeague();
       pollRef.current = setInterval(fetchLeague, 3000);
       return () => {
