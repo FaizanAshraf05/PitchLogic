@@ -276,6 +276,15 @@ export function MultiplayerLeagueScreen() {
           <Text style={styles.tapHint}>Tap a manager to send a match invite</Text>
         </View>
       )}
+
+      <TouchableOpacity
+        style={styles.auctionButton}
+        activeOpacity={0.8}
+        onPress={() => navigation.navigate('MultiplayerAuction', { code, managerName })}
+      >
+        <MaterialCommunityIcons name="gavel" size={20} color="#000" style={{ marginRight: 8 }} />
+        <Text style={styles.auctionButtonText}>Sign Free Agents</Text>
+      </TouchableOpacity>
     </SafeAreaView>
   );
 }
@@ -336,5 +345,22 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: Spacing.md,
     fontStyle: 'italic',
+  },
+  auctionButton: {
+    backgroundColor: Colors.green,
+    marginHorizontal: Spacing.lg,
+    marginTop: Spacing.md,
+    marginBottom: Spacing.lg,
+    paddingVertical: Spacing.base,
+    borderRadius: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  auctionButtonText: {
+    fontSize: Typography.fontSize.base,
+    color: '#000',
+    fontWeight: '800',
+    letterSpacing: 0.5,
   },
 });

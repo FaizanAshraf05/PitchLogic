@@ -11,3 +11,4 @@ export { MultiplayerScreen } from './MultiplayerScreen';
 export { MultiplayerLobbyScreen } from './MultiplayerLobbyScreen';
 export { MultiplayerLeagueScreen } from './MultiplayerLeagueScreen';
 export { MultiplayerPreMatchScreen } from './MultiplayerPreMatchScreen';
+export { MultiplayerAuctionScreen } from './MultiplayerAuctionScreen';

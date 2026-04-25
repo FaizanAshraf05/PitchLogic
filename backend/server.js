@@ -1108,12 +1108,16 @@ app.post('/api/mp/league/create', async (req, res) => {
             status: 'lobby',
             players: [{
                 managerName, teamId: null, teamName: null, teamOVR: null,
+                budget: 100000000,
                 points: 0, wins: 0, draws: 0, losses: 0, matchesPlayed: 0, goalDifference: 0
             }],
             pendingInvites: [],
             activeMatches: [],
+            auctions: [],
+            signedPlayers: [],
             inviteIdCounter: 1,
-            matchIdCounter: 1
+            matchIdCounter: 1,
+            auctionIdCounter: 1
         });
 
         res.json({ code });
@@ -1134,6 +1138,7 @@ app.post('/api/mp/league/join', async (req, res) => {
 
         league.players.push({
             managerName, teamId: null, teamName: null, teamOVR: null,
+            budget: 100000000,
             points: 0, wins: 0, draws: 0, losses: 0, matchesPlayed: 0, goalDifference: 0
         });
 
@@ -1141,10 +1146,33 @@ app.post('/api/mp/league/join', async (req, res) => {
     } catch (err) { res.status(500).send(err.message); }
 });
 
+function finalizeExpiredAuctions(league) {
+    const now = Date.now();
+    league.auctions.forEach(auction => {
+        if (auction.status !== 'active' || now < auction.endTime) return;
+        auction.status = 'completed';
+        if (auction.bids.length === 0) return;
+        const topBid = auction.bids.reduce((max, b) => b.amount > max.amount ? b : max);
+        const winner = league.players.find(p => p.managerName === topBid.managerName);
+        if (winner && winner.budget >= topBid.amount) {
+            winner.budget -= topBid.amount;
+            auction.winnerId = topBid.managerName;
+            auction.winnerAmount = topBid.amount;
+            league.signedPlayers.push({
+                playerId: auction.playerId,
+                playerName: auction.playerName,
+                signedBy: topBid.managerName,
+                amount: topBid.amount
+            });
+        }
+    });
+}
+
 app.get('/api/mp/league/:code', async (req, res) => {
     try {
         const league = multiplayerLeagues.get(req.params.code.toUpperCase());
         if (!league) return res.status(404).json({ message: 'League not found' });
+        finalizeExpiredAuctions(league);
         res.json(league);
     } catch (err) { res.status(500).send(err.message); }
 });
@@ -1161,13 +1189,14 @@ app.post('/api/mp/league/:code/select-team', async (req, res) => {
         const pool = await poolPromise;
         const teamRes = await pool.request()
             .input('teamId', sql.Int, teamId)
-            .query('SELECT name FROM Team WHERE teamID = @teamId');
+            .query('SELECT name, transferBudget FROM Team WHERE teamID = @teamId');
         if (teamRes.recordset.length === 0) return res.status(404).json({ message: 'Team not found' });
 
         const ovr = await calcTeamOVR(teamId);
         player.teamId = parseInt(teamId);
         player.teamName = teamRes.recordset[0].name;
         player.teamOVR = ovr;
+        player.budget = teamRes.recordset[0].transferBudget || 100000000;
 
         res.json({ player });
     } catch (err) { res.status(500).send(err.message); }
@@ -1317,6 +1346,92 @@ app.get('/api/mp/matches/:matchId', async (req, res) => {
         if (!match) return res.status(404).json({ message: 'Match not found' });
 
         res.json({ match });
+    } catch (err) { res.status(500).send(err.message); }
+});
+
+app.get('/api/mp/league/:code/free-agents', async (req, res) => {
+    try {
+        const league = multiplayerLeagues.get(req.params.code.toUpperCase());
+        if (!league) return res.status(404).json({ message: 'League not found' });
+        finalizeExpiredAuctions(league);
+
+        const pool = await poolPromise;
+        const result = await pool.request()
+            .query('SELECT playerID, name, position, overallRating, marketValue FROM Player WHERE teamID IS NULL ORDER BY overallRating DESC');
+
+        const signedIds = new Set(league.signedPlayers.map(s => s.playerId));
+        const freeAgents = result.recordset.filter(p => !signedIds.has(p.playerID));
+
+        res.json(freeAgents);
+    } catch (err) { res.status(500).send(err.message); }
+});
+
+app.post('/api/mp/league/:code/auction/start', async (req, res) => {
+    try {
+        const { managerName, playerId, playerName, playerPosition, playerOVR, playerMarketValue } = req.body;
+        const league = multiplayerLeagues.get(req.params.code.toUpperCase());
+        if (!league) return res.status(404).json({ message: 'League not found' });
+
+        finalizeExpiredAuctions(league);
+
+        if (league.auctions.find(a => a.status === 'active')) {
+            return res.status(400).json({ message: 'An auction is already in progress' });
+        }
+        if (league.signedPlayers.find(s => s.playerId === playerId)) {
+            return res.status(400).json({ message: 'Player already signed' });
+        }
+
+        const now = Date.now();
+        const auction = {
+            auctionId: league.auctionIdCounter++,
+            playerId,
+            playerName,
+            playerPosition,
+            playerOVR,
+            playerMarketValue,
+            startedBy: managerName,
+            startTime: now,
+            endTime: now + 60000,
+            status: 'active',
+            bids: [],
+            winnerId: null,
+            winnerAmount: null
+        };
+
+        league.auctions.push(auction);
+        res.json({ auction });
+    } catch (err) { res.status(500).send(err.message); }
+});
+
+app.post('/api/mp/league/:code/auction/:auctionId/bid', async (req, res) => {
+    try {
+        const { managerName, amount } = req.body;
+        const league = multiplayerLeagues.get(req.params.code.toUpperCase());
+        if (!league) return res.status(404).json({ message: 'League not found' });
+
+        finalizeExpiredAuctions(league);
+
+        const auction = league.auctions.find(a => a.auctionId === parseInt(req.params.auctionId));
+        if (!auction) return res.status(404).json({ message: 'Auction not found' });
+        if (auction.status !== 'active') return res.status(400).json({ message: 'Auction has ended' });
+
+        const bidder = league.players.find(p => p.managerName === managerName);
+        if (!bidder) return res.status(404).json({ message: 'Manager not in league' });
+
+        const currentTop = auction.bids.length > 0
+            ? Math.max(...auction.bids.map(b => b.amount))
+            : 0;
+        if (amount <= currentTop) {
+            return res.status(400).json({
+                message: `Bid must exceed the current top bid of $${(currentTop / 1000000).toFixed(1)}M`
+            });
+        }
+        if (bidder.budget < amount) {
+            return res.status(400).json({ message: 'Insufficient budget' });
+        }
+
+        auction.bids.push({ managerName, amount, timestamp: Date.now() });
+        res.json({ auction });
     } catch (err) { res.status(500).send(err.message); }
 });
 

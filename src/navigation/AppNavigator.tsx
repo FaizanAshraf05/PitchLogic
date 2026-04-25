@@ -18,6 +18,7 @@ import { MultiplayerScreen } from '../screens/MultiplayerScreen';
 import { MultiplayerLobbyScreen } from '../screens/MultiplayerLobbyScreen';
 import { MultiplayerLeagueScreen } from '../screens/MultiplayerLeagueScreen';
 import { MultiplayerPreMatchScreen } from '../screens/MultiplayerPreMatchScreen';
+import { MultiplayerAuctionScreen } from '../screens/MultiplayerAuctionScreen';
 
 export type RootStackParamList = {
   Title: undefined;
@@ -36,6 +37,7 @@ export type RootStackParamList = {
   MultiplayerLobby: { code: string; managerName: string; isHost: boolean };
   MultiplayerLeague: { code: string; managerName: string };
   MultiplayerPreMatch: { matchId: number; leagueCode: string; managerName: string };
+  MultiplayerAuction: { code: string; managerName: string };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -79,6 +81,7 @@ export function AppNavigator() {
         <Stack.Screen name="MultiplayerLobby" component={MultiplayerLobbyScreen} />
         <Stack.Screen name="MultiplayerLeague" component={MultiplayerLeagueScreen} />
         <Stack.Screen name="MultiplayerPreMatch" component={MultiplayerPreMatchScreen} />
+        <Stack.Screen name="MultiplayerAuction" component={MultiplayerAuctionScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );
