@@ -9,6 +9,7 @@ import {
   Alert,
   Image,
   Dimensions,
+  ActivityIndicator,
 } from 'react-native';
 import {
   SafeAreaView
@@ -16,20 +17,70 @@ import {
 import {
   Colors, Typography, Spacing, BorderRadius
 } from '../theme';
+import * as FileSystem from 'expo-file-system';
+
+const API_BASE = 'https://obliged-preamble-amplifier.ngrok-free.dev/api';
 
 interface TitleScreenProps {
   navigation: any;
 }
 
 export function TitleScreen({ navigation }: TitleScreenProps) {
+  const [loadingGame, setLoadingGame] = React.useState(false);
 
   const handleNewGame = () => {
     navigation.navigate('TeamSelect');
   };
 
-  const handleLoadGame = () => {
-    // TODO: Load saved game logic
-    Alert.alert('Load Game', 'No saved games found.');
+  const handleLoadGame = async () => {
+    try {
+      setLoadingGame(true);
+      const saveFile = new FileSystem.File(FileSystem.Paths.document, 'savegame.txt');
+
+      if (!saveFile.exists) {
+        Alert.alert('No Save Found', 'No saved game found on this device.');
+        setLoadingGame(false);
+        return;
+      }
+
+      const saveData = await saveFile.text();
+      const parsed = JSON.parse(saveData);
+
+      // Send to backend to restore game state
+      const res = await fetch(`${API_BASE}/game/load`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-manager-name': parsed.managerName
+        },
+        body: JSON.stringify({
+          managerName: parsed.managerName,
+          gameState: parsed.gameState
+        })
+      });
+
+      if (!res.ok) {
+        Alert.alert('Error', 'Failed to load saved game.');
+        setLoadingGame(false);
+        return;
+      }
+
+      const result = await res.json();
+      Alert.alert('Game Loaded', `Welcome back, ${parsed.managerName}!`, [
+        {
+          text: 'Continue',
+          onPress: () => navigation.navigate('Main', {
+            managerName: parsed.managerName,
+            teamId: parsed.teamId
+          })
+        }
+      ]);
+    } catch (error) {
+      console.error('Load error:', error);
+      Alert.alert('Error', 'Failed to load saved game. The save file may be corrupted.');
+    } finally {
+      setLoadingGame(false);
+    }
   };
 
   const handleQuit = () => {
@@ -77,9 +128,14 @@ export function TitleScreen({ navigation }: TitleScreenProps) {
           style={styles.menuButton}
           activeOpacity={0.8}
           onPress={handleLoadGame}
+          disabled={loadingGame}
         >
           <View style={styles.menuButtonInnerOutline}>
-            <Text style={styles.menuButtonTextOutline}>Load Game</Text>
+            {loadingGame ? (
+              <ActivityIndicator color={Colors.green} />
+            ) : (
+              <Text style={styles.menuButtonTextOutline}>Load Game</Text>
+            )}
           </View>
         </TouchableOpacity>
 

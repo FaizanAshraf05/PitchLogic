@@ -16,6 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import { Shadow } from 'react-native-shadow-2';
+import * as FileSystem from 'expo-file-system';
 import { Colors, Spacing, Typography, BorderRadius } from '../theme';
 
 const { width, height } = Dimensions.get('window');
@@ -127,6 +128,36 @@ export function HomeScreen() {
       console.error('Error fetching home screen data:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSaveAndQuit = async () => {
+    try {
+      const reqManagerName = route.params?.managerName || 'default';
+      const res = await fetch(`${API_BASE}/game/state`, {
+        headers: { 'x-manager-name': reqManagerName }
+      });
+      if (!res.ok) {
+        Alert.alert('Error', 'No active game to save.');
+        return;
+      }
+      const gameState = await res.json();
+
+      // Save to device local storage
+      const saveData = JSON.stringify({
+        managerName: reqManagerName,
+        teamId,
+        gameState
+      });
+      const saveFile = new FileSystem.File(FileSystem.Paths.document, 'savegame.txt');
+      saveFile.write(saveData);
+
+      Alert.alert('Game Saved', 'Your progress has been saved.', [
+        { text: 'OK', onPress: () => navigation.reset({ index: 0, routes: [{ name: 'Title' }] }) }
+      ]);
+    } catch (error) {
+      console.error('Save error:', error);
+      Alert.alert('Error', 'Failed to save game.');
     }
   };
 
@@ -357,6 +388,15 @@ export function HomeScreen() {
           </Shadow>
         </View>
 
+        {/* Save & Quit */}
+        <TouchableOpacity
+          style={styles.saveQuitButton}
+          activeOpacity={0.7}
+          onPress={handleSaveAndQuit}
+        >
+          <Text style={styles.saveQuitText}>SAVE & QUIT</Text>
+        </TouchableOpacity>
+
         <View style={{ height: Spacing.xl }} />
       </ScrollView>
     </SafeAreaView>
@@ -566,6 +606,17 @@ const styles = StyleSheet.create({
     color: Colors.textOnPrimary,
     fontWeight: Typography.fontWeight.bold,
     letterSpacing: Typography.letterSpacing.wider,
+  },
+  saveQuitButton: {
+    alignItems: 'center',
+    paddingVertical: 14,
+    marginTop: 10,
+  },
+  saveQuitText: {
+    color: Colors.textMuted,
+    fontSize: 13,
+    fontWeight: '600',
+    letterSpacing: 1,
   },
   modalOverlay: {
     flex: 1,

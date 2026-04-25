@@ -1024,6 +1024,54 @@ app.post('/api/game/new', async (req, res) => {
     }
 });
 
+// Get full game state for device-side saving
+app.get('/api/game/state', async (req, res) => {
+    try {
+        if (!req.gameState.active) {
+            return res.status(400).json({ message: "No active game to save." });
+        }
+        res.json(req.gameState);
+    } catch (err) { res.status(500).send("Server Error"); }
+});
+
+// Restore game state from device-saved data
+app.post('/api/game/load', async (req, res) => {
+    try {
+        const savedState = req.body.gameState;
+        if (!savedState) {
+            return res.status(400).json({ message: "No game state provided." });
+        }
+
+        const managerName = req.body.managerName || 'default';
+
+        // Restore the entire game state into memory
+        gameSessions.set(managerName, {
+            active: savedState.active || false,
+            managerId: savedState.managerId || null,
+            playerTeamId: savedState.playerTeamId || null,
+            weekNumber: savedState.weekNumber || 0,
+            teams: savedState.teams || [],
+            players: savedState.players || [],
+            fixtures: savedState.fixtures || [],
+            managers: savedState.managers || [],
+            incomingOffers: savedState.incomingOffers || [],
+            offerIdCounter: savedState.offerIdCounter || 1
+        });
+
+        // Find the manager's team ID to return
+        const playerTeamId = savedState.playerTeamId;
+
+        res.json({
+            message: "Game loaded successfully!",
+            managerName,
+            teamId: playerTeamId
+        });
+    } catch (err) {
+        console.error("Load Error:", err);
+        res.status(500).send("Failed to load game: " + err.message);
+    }
+});
+
 const PORT = 3000;
 app.listen(PORT, () => {
     console.log(`Pitch Logic API running on http://localhost:${PORT}`);
