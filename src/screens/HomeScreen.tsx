@@ -10,6 +10,7 @@ import {
   ScrollView,
   ActivityIndicator,
   Alert,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -51,11 +52,21 @@ export function HomeScreen() {
   const [nextMatch, setNextMatch] = useState<any | null>(null);
   const [teamsMap, setTeamsMap] = useState<Record<number, string>>({});
   const [loading, setLoading] = useState(true);
+  const [showManagerStats, setShowManagerStats] = useState(false);
+  const [teamStats, setTeamStats] = useState<{played: number; wins: number; draws: number; losses: number}>({played: 0, wins: 0, draws: 0, losses: 0});
 
   // Get manager name and team ID directly from route params
   const managerName = route.params?.managerName || '[NAME]';
   const teamId = route.params?.teamId || 10; // Fallback to Man City
   const managerNameUpper = managerName.toUpperCase();
+
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Good Morning';
+    if (hour < 17) return 'Good Afternoon';
+    if (hour < 21) return 'Good Evening';
+    return 'Good Night';
+  };
 
   useFocusEffect(
     useCallback(() => {
@@ -81,6 +92,23 @@ export function HomeScreen() {
           }
         });
         setTeamsMap(map);
+
+        // Fetch team stats for manager bubble
+        const statsRes = await fetch(`${API_BASE}/league/standings`, {
+          headers: { 'x-manager-name': reqManagerName }
+        });
+        if (statsRes.ok) {
+          const standings = await statsRes.json();
+          const myTeam = standings.find((t: any) => t.teamID === teamId);
+          if (myTeam) {
+            setTeamStats({
+              played: myTeam.matchesPlayed || 0,
+              wins: myTeam.wins || 0,
+              draws: myTeam.draws || 0,
+              losses: myTeam.losses || 0,
+            });
+          }
+        }
       }
 
       // Fetch next match
@@ -217,8 +245,10 @@ export function HomeScreen() {
         {/* Header */}
         <View style={styles.headerContainer}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.greetingText}>Good Morning</Text>
-            <Text style={styles.nameText}>{managerNameUpper}</Text>
+            <Text style={styles.greetingText}>{getGreeting()}</Text>
+            <TouchableOpacity activeOpacity={0.7} onPress={() => setShowManagerStats(true)}>
+              <Text style={styles.nameText}>{managerNameUpper}</Text>
+            </TouchableOpacity>
           </View>
           <TouchableOpacity
             style={styles.inboxIcon}
@@ -228,6 +258,51 @@ export function HomeScreen() {
             <MaterialCommunityIcons name="email-outline" size={24} color="#FFF" />
           </TouchableOpacity>
         </View>
+
+        {/* Manager Stats Bubble */}
+        <Modal
+          visible={showManagerStats}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowManagerStats(false)}
+        >
+          <TouchableOpacity
+            style={styles.modalOverlay}
+            activeOpacity={1}
+            onPress={() => setShowManagerStats(false)}
+          >
+            <View style={styles.statsBubble}>
+              <Text style={styles.bubbleTitle}>{managerNameUpper}</Text>
+              <View style={styles.bubbleDivider} />
+              <View style={styles.bubbleRow}>
+                <Text style={styles.bubbleLabel}>Matches Played</Text>
+                <Text style={styles.bubbleValue}>{teamStats.played}</Text>
+              </View>
+              <View style={styles.bubbleRow}>
+                <Text style={styles.bubbleLabel}>Wins</Text>
+                <Text style={[styles.bubbleValue, { color: Colors.green }]}>{teamStats.wins}</Text>
+              </View>
+              <View style={styles.bubbleRow}>
+                <Text style={styles.bubbleLabel}>Draws</Text>
+                <Text style={[styles.bubbleValue, { color: Colors.amber }]}>{teamStats.draws}</Text>
+              </View>
+              <View style={styles.bubbleRow}>
+                <Text style={styles.bubbleLabel}>Losses</Text>
+                <Text style={[styles.bubbleValue, { color: Colors.red }]}>{teamStats.losses}</Text>
+              </View>
+              <View style={styles.bubbleDivider} />
+              <View style={styles.bubbleRow}>
+                <Text style={styles.bubbleLabel}>Win Rate</Text>
+                <Text style={[styles.bubbleValue, { color: Colors.green }]}>
+                  {teamStats.played > 0 ? `${Math.round((teamStats.wins / teamStats.played) * 100)}%` : '—'}
+                </Text>
+              </View>
+              <TouchableOpacity style={styles.bubbleClose} onPress={() => setShowManagerStats(false)}>
+                <Text style={styles.bubbleCloseText}>Close</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </Modal>
 
         {/* Budget Card */}
         <View style={styles.budgetContainer}>
@@ -491,5 +566,58 @@ const styles = StyleSheet.create({
     color: Colors.textOnPrimary,
     fontWeight: Typography.fontWeight.bold,
     letterSpacing: Typography.letterSpacing.wider,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  statsBubble: {
+    backgroundColor: '#1a1f1a',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(46, 204, 113, 0.3)',
+    padding: 24,
+    width: width * 0.75,
+  },
+  bubbleTitle: {
+    color: Colors.green,
+    fontSize: 18,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  bubbleDivider: {
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    marginVertical: 10,
+  },
+  bubbleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 6,
+  },
+  bubbleLabel: {
+    color: '#AAA',
+    fontSize: 14,
+  },
+  bubbleValue: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  bubbleClose: {
+    marginTop: 16,
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+  },
+  bubbleCloseText: {
+    color: Colors.textDim,
+    fontSize: 14,
+    fontWeight: '600',
   },
 });
