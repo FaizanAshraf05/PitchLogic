@@ -5,7 +5,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   StatusBar,
-  BackHandler,
   Alert,
   Image,
   Dimensions,
@@ -83,17 +82,6 @@ export function TitleScreen({ navigation }: TitleScreenProps) {
     }
   };
 
-  const handleQuit = () => {
-    Alert.alert(
-      'Quit Game',
-      'Are you sure you want to quit?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Quit', style: 'destructive', onPress: () => BackHandler.exitApp() },
-      ]
-    );
-  };
-
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <StatusBar barStyle="light-content" backgroundColor={Colors.bg} />
@@ -140,11 +128,13 @@ export function TitleScreen({ navigation }: TitleScreenProps) {
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={styles.quitButton}
+          style={styles.menuButton}
           activeOpacity={0.8}
-          onPress={handleQuit}
+          onPress={() => navigation.navigate('Multiplayer')}
         >
-          <Text style={styles.quitButtonText}>Quit</Text>
+          <View style={styles.menuButtonInnerOutline}>
+            <Text style={styles.menuButtonTextOutline}>Multiplayer</Text>
+          </View>
         </TouchableOpacity>
       </View>
       <Text style={styles.Author}>by</Text>
@@ -237,15 +227,6 @@ const styles = StyleSheet.create({
     color: Colors.green,
     fontWeight: Typography.fontWeight.bold,
     letterSpacing: Typography.letterSpacing.wide,
-  },
-  quitButton: {
-    paddingVertical: Spacing.md,
-    alignItems: 'center',
-  },
-  quitButtonText: {
-    fontSize: Typography.fontSize.base,
-    color: Colors.textMuted,
-    fontWeight: Typography.fontWeight.medium,
   },
   Author: {
     fontSize: Typography.fontSize.xs,

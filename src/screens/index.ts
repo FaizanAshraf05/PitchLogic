@@ -7,3 +7,7 @@ export { LeagueScreen } from './LeagueScreen';
 export { TrainingScreen } from './TrainingScreen';
 export { ScheduleScreen } from './ScheduleScreen';
 export { InboxScreen } from './InboxScreen';
+export { MultiplayerScreen } from './MultiplayerScreen';
+export { MultiplayerLobbyScreen } from './MultiplayerLobbyScreen';
+export { MultiplayerLeagueScreen } from './MultiplayerLeagueScreen';
+export { MultiplayerPreMatchScreen } from './MultiplayerPreMatchScreen';

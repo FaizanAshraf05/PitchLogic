@@ -17,6 +17,26 @@ const poolPromise = sql.connect(config)
 // Global In-Memory Game States (Multi-user support)
 const gameSessions = new Map();
 
+// Multiplayer leagues
+const multiplayerLeagues = new Map();
+
+async function calcTeamOVR(teamId) {
+    const pool = await poolPromise;
+    const result = await pool.request()
+        .input('teamId', sql.Int, teamId)
+        .query('SELECT TOP 11 overallRating FROM Player WHERE teamID = @teamId ORDER BY overallRating DESC');
+    const rows = result.recordset;
+    if (rows.length === 0) return 70;
+    return Math.round(rows.reduce((s, r) => s + r.overallRating, 0) / rows.length);
+}
+
+function generateLeagueCode() {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let code = '';
+    for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
+    return code;
+}
+
 // Middleware to attach the correct game state to the request
 app.use((req, res, next) => {
     const managerName = (req.query && req.query.manager) || (req.body && req.body.managerName) || (req.headers && req.headers['x-manager-name']) || 'default';
@@ -1071,6 +1091,236 @@ app.post('/api/game/load', async (req, res) => {
         res.status(500).send("Failed to load game: " + err.message);
     }
 });
+
+// ─── MULTIPLAYER ENDPOINTS ────────────────────────────────────────────────────
+
+app.post('/api/mp/league/create', async (req, res) => {
+    try {
+        const { managerName } = req.body;
+        if (!managerName) return res.status(400).json({ message: 'managerName required' });
+
+        let code;
+        do { code = generateLeagueCode(); } while (multiplayerLeagues.has(code));
+
+        multiplayerLeagues.set(code, {
+            code,
+            hostManagerName: managerName,
+            status: 'lobby',
+            players: [{
+                managerName, teamId: null, teamName: null, teamOVR: null,
+                points: 0, wins: 0, draws: 0, losses: 0, matchesPlayed: 0, goalDifference: 0
+            }],
+            pendingInvites: [],
+            activeMatches: [],
+            inviteIdCounter: 1,
+            matchIdCounter: 1
+        });
+
+        res.json({ code });
+    } catch (err) { res.status(500).send(err.message); }
+});
+
+app.post('/api/mp/league/join', async (req, res) => {
+    try {
+        const { code, managerName } = req.body;
+        if (!code || !managerName) return res.status(400).json({ message: 'code and managerName required' });
+
+        const league = multiplayerLeagues.get(code.toUpperCase());
+        if (!league) return res.status(404).json({ message: 'League not found' });
+        if (league.status !== 'lobby') return res.status(400).json({ message: 'League already started' });
+
+        const existing = league.players.find(p => p.managerName === managerName);
+        if (existing) return res.json({ league });
+
+        league.players.push({
+            managerName, teamId: null, teamName: null, teamOVR: null,
+            points: 0, wins: 0, draws: 0, losses: 0, matchesPlayed: 0, goalDifference: 0
+        });
+
+        res.json({ league });
+    } catch (err) { res.status(500).send(err.message); }
+});
+
+app.get('/api/mp/league/:code', async (req, res) => {
+    try {
+        const league = multiplayerLeagues.get(req.params.code.toUpperCase());
+        if (!league) return res.status(404).json({ message: 'League not found' });
+        res.json(league);
+    } catch (err) { res.status(500).send(err.message); }
+});
+
+app.post('/api/mp/league/:code/select-team', async (req, res) => {
+    try {
+        const { managerName, teamId } = req.body;
+        const league = multiplayerLeagues.get(req.params.code.toUpperCase());
+        if (!league) return res.status(404).json({ message: 'League not found' });
+
+        const player = league.players.find(p => p.managerName === managerName);
+        if (!player) return res.status(404).json({ message: 'Manager not in this league' });
+
+        const pool = await poolPromise;
+        const teamRes = await pool.request()
+            .input('teamId', sql.Int, teamId)
+            .query('SELECT name FROM Team WHERE teamID = @teamId');
+        if (teamRes.recordset.length === 0) return res.status(404).json({ message: 'Team not found' });
+
+        const ovr = await calcTeamOVR(teamId);
+        player.teamId = parseInt(teamId);
+        player.teamName = teamRes.recordset[0].name;
+        player.teamOVR = ovr;
+
+        res.json({ player });
+    } catch (err) { res.status(500).send(err.message); }
+});
+
+app.post('/api/mp/league/:code/start', async (req, res) => {
+    try {
+        const { managerName } = req.body;
+        const league = multiplayerLeagues.get(req.params.code.toUpperCase());
+        if (!league) return res.status(404).json({ message: 'League not found' });
+        if (managerName !== league.hostManagerName) return res.status(403).json({ message: 'Only the host can start the league' });
+        if (league.players.length < 2) return res.status(400).json({ message: 'Need at least 2 players to start' });
+        if (league.players.some(p => !p.teamId)) return res.status(400).json({ message: 'All players must select a team before starting' });
+
+        league.status = 'active';
+        res.json({ league });
+    } catch (err) { res.status(500).send(err.message); }
+});
+
+app.post('/api/mp/matches/invite', async (req, res) => {
+    try {
+        const { leagueCode, fromManager, toManager } = req.body;
+        const league = multiplayerLeagues.get(leagueCode.toUpperCase());
+        if (!league) return res.status(404).json({ message: 'League not found' });
+
+        const fromPlayer = league.players.find(p => p.managerName === fromManager);
+        const toPlayer = league.players.find(p => p.managerName === toManager);
+        if (!fromPlayer || !toPlayer) return res.status(400).json({ message: 'Manager not in this league' });
+
+        const existing = league.pendingInvites.find(
+            i => i.fromManager === fromManager && i.toManager === toManager && i.status === 'pending'
+        );
+        if (existing) return res.json({ inviteId: existing.inviteId });
+
+        const inviteId = league.inviteIdCounter++;
+        league.pendingInvites.push({
+            inviteId,
+            fromManager,
+            toManager,
+            fromTeamName: fromPlayer.teamName,
+            toTeamName: toPlayer.teamName,
+            status: 'pending'
+        });
+
+        res.json({ inviteId });
+    } catch (err) { res.status(500).send(err.message); }
+});
+
+app.post('/api/mp/matches/respond', async (req, res) => {
+    try {
+        const { leagueCode, inviteId, action } = req.body;
+        const league = multiplayerLeagues.get(leagueCode.toUpperCase());
+        if (!league) return res.status(404).json({ message: 'League not found' });
+
+        const invite = league.pendingInvites.find(i => i.inviteId === inviteId);
+        if (!invite) return res.status(404).json({ message: 'Invite not found' });
+        if (invite.status !== 'pending') return res.status(400).json({ message: 'Invite already resolved' });
+
+        if (action === 'reject') {
+            invite.status = 'rejected';
+            return res.json({ outcome: 'rejected' });
+        }
+
+        if (action === 'accept') {
+            invite.status = 'accepted';
+            const homePlayer = league.players.find(p => p.managerName === invite.fromManager);
+            const awayPlayer = league.players.find(p => p.managerName === invite.toManager);
+
+            const matchId = league.matchIdCounter++;
+            league.activeMatches.push({
+                matchId,
+                homeManager: invite.fromManager,
+                awayManager: invite.toManager,
+                homeTeamId: homePlayer.teamId,
+                awayTeamId: awayPlayer.teamId,
+                homeTeamName: homePlayer.teamName,
+                awayTeamName: awayPlayer.teamName,
+                homeOVR: homePlayer.teamOVR,
+                awayOVR: awayPlayer.teamOVR,
+                homeManagerReady: false,
+                awayManagerReady: false,
+                homeGoals: null,
+                awayGoals: null,
+                status: 'waiting'
+            });
+
+            return res.json({ outcome: 'accepted', matchId });
+        }
+
+        res.status(400).json({ message: 'Invalid action' });
+    } catch (err) { res.status(500).send(err.message); }
+});
+
+app.post('/api/mp/matches/:matchId/ready', async (req, res) => {
+    try {
+        const { leagueCode, managerName } = req.body;
+        const league = multiplayerLeagues.get(leagueCode.toUpperCase());
+        if (!league) return res.status(404).json({ message: 'League not found' });
+
+        const match = league.activeMatches.find(m => m.matchId === parseInt(req.params.matchId));
+        if (!match) return res.status(404).json({ message: 'Match not found' });
+        if (match.status === 'done') return res.json({ match });
+
+        if (managerName === match.homeManager) match.homeManagerReady = true;
+        else if (managerName === match.awayManager) match.awayManagerReady = true;
+        else return res.status(403).json({ message: 'Not a participant in this match' });
+
+        if (match.homeManagerReady && match.awayManagerReady) {
+            const totalOVR = match.homeOVR + match.awayOVR;
+            const homeProb = totalOVR > 0 ? match.homeOVR / totalOVR : 0.5;
+            let homeGoals = 0, awayGoals = 0;
+            for (let i = 0; i < 5; i++) {
+                if (Math.random() < (homeProb * 1.2)) homeGoals++;
+                if (Math.random() < ((1 - homeProb) * 1.2)) awayGoals++;
+            }
+            match.homeGoals = homeGoals;
+            match.awayGoals = awayGoals;
+            match.status = 'done';
+
+            const homePlayer = league.players.find(p => p.managerName === match.homeManager);
+            const awayPlayer = league.players.find(p => p.managerName === match.awayManager);
+            const diff = homeGoals - awayGoals;
+            homePlayer.matchesPlayed++;
+            awayPlayer.matchesPlayed++;
+            if (homeGoals > awayGoals) {
+                homePlayer.wins++; homePlayer.points += 3; homePlayer.goalDifference += diff;
+                awayPlayer.losses++; awayPlayer.goalDifference -= diff;
+            } else if (awayGoals > homeGoals) {
+                awayPlayer.wins++; awayPlayer.points += 3; awayPlayer.goalDifference += (-diff);
+                homePlayer.losses++; homePlayer.goalDifference += diff;
+            } else {
+                homePlayer.draws++; homePlayer.points++;
+                awayPlayer.draws++; awayPlayer.points++;
+            }
+        }
+
+        res.json({ match });
+    } catch (err) { res.status(500).send(err.message); }
+});
+
+app.get('/api/mp/matches/:matchId', async (req, res) => {
+    try {
+        const league = multiplayerLeagues.get((req.query.leagueCode || '').toUpperCase());
+        if (!league) return res.status(404).json({ message: 'League not found' });
+
+        const match = league.activeMatches.find(m => m.matchId === parseInt(req.params.matchId));
+        if (!match) return res.status(404).json({ message: 'Match not found' });
+
+        res.json({ match });
+    } catch (err) { res.status(500).send(err.message); }
+});
+
+// ──────────────────────────────────────────────────────────────────────────────
 
 const PORT = 3000;
 app.listen(PORT, () => {

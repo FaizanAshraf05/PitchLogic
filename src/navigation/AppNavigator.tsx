@@ -14,6 +14,10 @@ import { TransferScreen } from '../screens/TransferScreen';
 import { PreMatchScreen } from '../screens/PreMatchScreen';
 import { FacilitiesScreen } from '../screens/FacilitiesScreen';
 import { InboxScreen } from '../screens/InboxScreen';
+import { MultiplayerScreen } from '../screens/MultiplayerScreen';
+import { MultiplayerLobbyScreen } from '../screens/MultiplayerLobbyScreen';
+import { MultiplayerLeagueScreen } from '../screens/MultiplayerLeagueScreen';
+import { MultiplayerPreMatchScreen } from '../screens/MultiplayerPreMatchScreen';
 
 export type RootStackParamList = {
   Title: undefined;
@@ -28,6 +32,10 @@ export type RootStackParamList = {
   PreMatch: { matchId: number; teamId: number } | undefined;
   Facilities: undefined;
   Inbox: { teamId: number } | undefined;
+  Multiplayer: undefined;
+  MultiplayerLobby: { code: string; managerName: string; isHost: boolean };
+  MultiplayerLeague: { code: string; managerName: string };
+  MultiplayerPreMatch: { matchId: number; leagueCode: string; managerName: string };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -67,6 +75,10 @@ export function AppNavigator() {
         <Stack.Screen name="PreMatch" component={PreMatchScreen} />
         <Stack.Screen name="Facilities" component={FacilitiesScreen} />
         <Stack.Screen name="Inbox" component={InboxScreen} />
+        <Stack.Screen name="Multiplayer" component={MultiplayerScreen} />
+        <Stack.Screen name="MultiplayerLobby" component={MultiplayerLobbyScreen} />
+        <Stack.Screen name="MultiplayerLeague" component={MultiplayerLeagueScreen} />
+        <Stack.Screen name="MultiplayerPreMatch" component={MultiplayerPreMatchScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );
