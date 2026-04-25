@@ -412,11 +412,23 @@ app.post('/api/matches/simulate', async (req, res) => {
                 const injuryChance = 0.60 + (Math.random() * 0.10); // 60-70%
                 if (Math.random() < injuryChance) {
                     const weeks = Math.floor(Math.random() * 5) + 2; // 2-6 weeks
+                    const vacatedIndex = p.squadPositionIndex;
                     p.injuredWeeksRemaining = weeks;
                     p.squadRole = 'Reserve';
+                    p.squadPositionIndex = 99;
                     p.isFatigued = false;
                     fatigueInfo.injuries.push({ name: p.name, position: p.position, weeks });
                     console.log(`INJURY: ${p.name} injured for ${weeks} weeks.`);
+
+                    // Auto-promote best bench player into the vacated starter slot
+                    const benchPlayers = teamPlayers.filter(bp => bp.squadRole === 'Bench' && !bp.injuredWeeksRemaining);
+                    if (benchPlayers.length > 0) {
+                        benchPlayers.sort((a, b) => b.overallRating - a.overallRating);
+                        const replacement = benchPlayers[0];
+                        replacement.squadRole = 'Starter';
+                        replacement.squadPositionIndex = vacatedIndex !== undefined ? vacatedIndex : 0;
+                        console.log(`AUTO-SUB: ${replacement.name} promoted to starting XI.`);
+                    }
                 }
             });
 
