@@ -235,7 +235,7 @@ export function MultiplayerAuctionScreen() {
           <MaterialCommunityIcons name="keyboard-return" size={32} color={Colors.green} />
         </TouchableOpacity>
         <View style={{ flex: 1, alignItems: 'center' }}>
-          <Text style={styles.headerTitle}>Free Agent Auction</Text>
+          <Text style={styles.headerTitle}>Auctions</Text>
         </View>
         <View style={styles.budgetBadge}>
           <Text style={styles.budgetLabel}>Budget</Text>
@@ -261,12 +261,9 @@ export function MultiplayerAuctionScreen() {
               </View>
 
               <View style={styles.playerRow}>
-                <View style={styles.ovrBadge}>
-                  <Text style={styles.ovrText}>{activeAuction.playerOVR}</Text>
-                </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.playerName}>{activeAuction.playerName}</Text>
-                  <Text style={styles.playerMeta}>{activeAuction.playerPosition} · MV {fmt(activeAuction.playerMarketValue)}</Text>
+                  <Text style={styles.playerMeta}>{activeAuction.playerPosition} · OVR {activeAuction.playerOVR} · MV {fmt(activeAuction.playerMarketValue)}</Text>
                 </View>
               </View>
 
@@ -326,7 +323,7 @@ export function MultiplayerAuctionScreen() {
                   }
                 </TouchableOpacity>
               </View>
-              <Text style={styles.bidHint}>Enter amount in millions · Your budget: {fmt(myBudget)}</Text>
+              <Text style={styles.bidHint}>Enter amount in millions.</Text>
             </View>
           )}
 
@@ -336,12 +333,9 @@ export function MultiplayerAuctionScreen() {
               <Text style={styles.sectionTitle}>Recent Results</Text>
               {recentAuctions.map(a => (
                 <View key={a.auctionId} style={styles.completedRow}>
-                  <View style={styles.ovrBadgeSmall}>
-                    <Text style={styles.ovrTextSmall}>{a.playerOVR}</Text>
-                  </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.completedPlayerName}>{a.playerName}</Text>
-                    <Text style={styles.completedMeta}>{a.playerPosition}</Text>
+                    <Text style={styles.completedMeta}>{a.playerPosition} · OVR {a.playerOVR}</Text>
                   </View>
                   {a.winnerId ? (
                     <View style={{ alignItems: 'flex-end' }}>
@@ -371,12 +365,9 @@ export function MultiplayerAuctionScreen() {
                 const alreadyInAuction = activeAuction?.playerId === agent.playerID;
                 return (
                   <View key={agent.playerID} style={styles.agentRow}>
-                    <View style={styles.ovrBadge}>
-                      <Text style={styles.ovrText}>{agent.overallRating}</Text>
-                    </View>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.agentName}>{agent.name}</Text>
-                      <Text style={styles.agentMeta}>{agent.position} · {fmt(agent.marketValue)}</Text>
+                      <Text style={styles.agentMeta}>{agent.position} · OVR {agent.overallRating} · {fmt(agent.marketValue)}</Text>
                     </View>
                     <TouchableOpacity
                       style={[
@@ -462,28 +453,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: 'rgba(29,185,84,0.12)',
-    borderRadius: BorderRadius.sm,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 3,
-    borderWidth: 1,
-    borderColor: Colors.green,
   },
-  timerBadgeUrgent: {
-    backgroundColor: 'rgba(255,68,68,0.12)',
-    borderColor: '#ff4444',
-  },
+  timerBadgeUrgent: {},
   timerText: { fontSize: 16, color: Colors.green, fontWeight: '900', fontVariant: ['tabular-nums'] },
   timerTextUrgent: { color: '#ff4444' },
   playerRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, marginBottom: Spacing.md },
-  ovrBadge: {
-    width: 44, height: 44,
-    borderRadius: 10,
-    backgroundColor: Colors.green,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  ovrText: { fontSize: 16, color: '#000', fontWeight: '900' },
   playerName: { fontSize: Typography.fontSize.base, color: Colors.text, fontWeight: '800' },
   playerMeta: { fontSize: Typography.fontSize.xs, color: Colors.textMuted, marginTop: 2 },
   divider: { height: 1, backgroundColor: Colors.border, marginVertical: Spacing.md },
@@ -564,14 +538,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border,
   },
-  ovrBadgeSmall: {
-    width: 34, height: 34,
-    borderRadius: 8,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  ovrTextSmall: { fontSize: 13, color: Colors.text, fontWeight: '900' },
   completedPlayerName: { fontSize: Typography.fontSize.sm, color: Colors.text, fontWeight: '700' },
   completedMeta: { fontSize: Typography.fontSize.xs, color: Colors.textMuted },
   completedWinner: { fontSize: Typography.fontSize.sm, color: Colors.green, fontWeight: '700' },

@@ -1158,6 +1158,10 @@ function finalizeExpiredAuctions(league) {
             winner.budget -= topBid.amount;
             auction.winnerId = topBid.managerName;
             auction.winnerAmount = topBid.amount;
+            // Recalculate OVR: blend new player into a squad of 11
+            if (winner.teamOVR) {
+                winner.teamOVR = Math.min(99, Math.round((winner.teamOVR * 11 + auction.playerOVR) / 12));
+            }
             league.signedPlayers.push({
                 playerId: auction.playerId,
                 playerName: auction.playerName,
