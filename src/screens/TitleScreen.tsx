@@ -18,7 +18,7 @@ import {
 } from '../theme';
 import * as FileSystem from 'expo-file-system';
 
-const API_BASE = 'https://obliged-preamble-amplifier.ngrok-free.dev/api';
+import { API_BASE } from '../api/config';
 
 interface TitleScreenProps {
   navigation: any;

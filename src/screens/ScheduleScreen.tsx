@@ -12,6 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Colors, Spacing } from '../theme';
+import { API_BASE } from '../api/config';
 
 export function ScheduleScreen() {
   const navigation = useNavigation<any>();
@@ -28,7 +29,6 @@ export function ScheduleScreen() {
   const fetchSchedule = async () => {
     try {
       setLoading(true);
-      const API_BASE = 'https://obliged-preamble-amplifier.ngrok-free.dev/api';
       const managerName = route.params?.managerName || navigation.getState()?.routes.find((r: any) => r.name === 'Main')?.params?.managerName || 'default';
       const response = await fetch(`${API_BASE}/teams/${teamId}/schedule`, {
         headers: { 'x-manager-name': managerName }

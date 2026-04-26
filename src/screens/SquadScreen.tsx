@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import { Colors, Spacing, Typography, BorderRadius } from '../theme';
+import { API_BASE } from '../api/config';
 
 const { width } = Dimensions.get('window');
 
@@ -161,7 +162,6 @@ export function SquadScreen() {
   const fetchPlayers = async () => {
     try {
       setLoading(true);
-      const API_BASE = 'https://obliged-preamble-amplifier.ngrok-free.dev/api';
       const managerName = route.params?.managerName || navigation.getState()?.routes.find((r: any) => r.name === 'Main')?.params?.managerName || 'default';
       const response = await fetch(`${API_BASE}/teams/${teamId}/players`, {
         headers: { 'x-manager-name': managerName }
@@ -240,7 +240,6 @@ export function SquadScreen() {
 
   const fetchFatigueStatus = async () => {
     try {
-      const API_BASE = 'https://obliged-preamble-amplifier.ngrok-free.dev/api';
       const managerName = route.params?.managerName || navigation.getState()?.routes.find((r: any) => r.name === 'Main')?.params?.managerName || 'default';
       const response = await fetch(`${API_BASE}/teams/${teamId}/fatigue-status`, {
         headers: { 'x-manager-name': managerName }
@@ -280,7 +279,6 @@ export function SquadScreen() {
         currentOvr = Math.round(total / validStarters.length);
       }
 
-      const API_BASE = 'https://obliged-preamble-amplifier.ngrok-free.dev/api';
       const managerName = route.params?.managerName || navigation.getState()?.routes.find((r: any) => r.name === 'Main')?.params?.managerName || 'default';
       const response = await fetch(`${API_BASE}/teams/${teamId}/lineup`, {
         method: 'PUT',

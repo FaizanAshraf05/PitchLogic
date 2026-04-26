@@ -16,6 +16,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Shadow } from 'react-native-shadow-2';
 import { Colors, Typography, Spacing, BorderRadius } from '../theme';
+import { API_BASE } from '../api/config';
 
 const { width } = Dimensions.get('window');
 const GRID_COLUMNS = 3;
@@ -23,7 +24,7 @@ const GRID_PADDING = 24;
 const GRID_GAP = 14;
 const ICON_SIZE = (width - GRID_PADDING * 2 - GRID_GAP * (GRID_COLUMNS - 1)) / GRID_COLUMNS;
 
-const API_URL = 'https://obliged-preamble-amplifier.ngrok-free.dev/api/teams';
+const API_URL = `${API_BASE}/teams`;
 
 interface TeamFromAPI {
   teamID: number;
@@ -105,7 +106,7 @@ export function TeamSelectScreen({ navigation }: TeamSelectScreenProps) {
 
     setIsStarting(true);
     try {
-      const response = await fetch('https://obliged-preamble-amplifier.ngrok-free.dev/api/game/new', {
+      const response = await fetch(`${API_BASE}/game/new`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

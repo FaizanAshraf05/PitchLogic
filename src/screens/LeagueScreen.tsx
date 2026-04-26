@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect, useRoute } from '@react-navigation/native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Colors, Typography, Spacing } from '../theme';
+import { API_BASE } from '../api/config';
 
 interface TeamStanding {
   teamID: number;
@@ -31,7 +32,6 @@ export function LeagueScreen() {
   const fetchStandings = async () => {
     try {
       setLoading(true);
-      const API_BASE = 'https://obliged-preamble-amplifier.ngrok-free.dev/api';
       const managerName = route.params?.managerName || navigation.getState()?.routes.find((r: any) => r.name === 'Main')?.params?.managerName || 'default';
       const response = await fetch(`${API_BASE}/league/standings`, {
         headers: { 'x-manager-name': managerName }

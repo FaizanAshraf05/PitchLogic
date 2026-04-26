@@ -17,7 +17,7 @@ import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/nativ
 import { Colors, Typography, Spacing, BorderRadius } from '../theme';
 
 const { width } = Dimensions.get('window');
-const API_BASE = 'https://obliged-preamble-amplifier.ngrok-free.dev/api';
+import { API_BASE } from '../api/config';
 
 interface Offer {
   offerId: number;

@@ -32,69 +32,6 @@ The backend is a **Node.js REST API** built with **Express 5**, handling all gam
 ### Database — Microsoft SQL Server
 Player data, team information, league fixtures, and manager records are stored in a **Microsoft SQL Server** database (`Pitch_Logic` DB). The backend connects via the `mssql` Node.js driver.
 
-## Project Structure
-
-```
-SDA PROJECT/
-├── src/
-│   ├── screens/              # All 17 game screens
-│   │   ├── TitleScreen.tsx
-│   │   ├── TeamSelectScreen.tsx
-│   │   ├── HomeScreen.tsx
-│   │   ├── SquadScreen.tsx
-│   │   ├── MatchScreen.tsx
-│   │   ├── LeagueScreen.tsx
-│   │   ├── TrainingScreen.tsx
-│   │   ├── ScheduleScreen.tsx
-│   │   ├── TransferScreen.tsx
-│   │   ├── PreMatchScreen.tsx
-│   │   ├── FacilitiesScreen.tsx
-│   │   ├── InboxScreen.tsx
-│   │   ├── MultiplayerScreen.tsx
-│   │   ├── MultiplayerLobbyScreen.tsx
-│   │   ├── MultiplayerLeagueScreen.tsx
-│   │   ├── MultiplayerPreMatchScreen.tsx
-│   │   └── MultiplayerAuctionScreen.tsx
-│   ├── components/           # Shared UI components (TabBar, etc.)
-│   ├── navigation/           # AppNavigator setup
-│   ├── store/                # Zustand game store
-│   └── theme/                # Colors, spacing, typography
-├── backend/
-│   ├── server.js             # Express API (all endpoints)
-│   ├── dbConfig.js           # MSSQL connection config
-│   └── package.json
-├── assets/                   # Images, team logos, pitch background
-├── App.tsx                   # Root component
-├── app.json                  # Expo app config
-├── eas.json                  # Expo build config
-└── tsconfig.json             # TypeScript config (strict mode)
-```
-
----
-
-## Screens at a Glance
-
-| Screen | What It Does |
-|---|---|
-| **Title Screen** | New Game / Load Game entry point |
-| **Team Select** | Pick the club you want to manage |
-| **Home** | Main dashboard — budget, next match, manager stats |
-| **Squad** | Full squad view, player ratings, position assignments |
-| **Pre-Match** | Set your lineup and tactics before kick-off |
-| **Match** | Watch the match simulation play out |
-| **League** | Full season standings table |
-| **Schedule** | Upcoming fixtures and results |
-| **Transfer Market** | Scout free agents, submit bids, handle incoming offers |
-| **Training** | Assign training programs for rating boosts |
-| **Facilities** | Upgrade youth academy and training grounds |
-| **Inbox** | Board messages, injury updates, transfer notifications |
-| **Multiplayer** | Entry to multiplayer mode |
-| **Multiplayer Lobby** | Create or join a league with a 6-character code |
-| **Multiplayer League** | Standings for your multiplayer league |
-| **Multiplayer Pre-Match** | Set tactics before a multiplayer fixture |
-| **Multiplayer Auction** | Live competitive player auction against real opponents |
-
----
 
 ## Multiplayer
 
@@ -132,17 +69,5 @@ The API runs on `localhost:3000` by default. Update the base URL in the frontend
 ### Database
 
 You will need a running Microsoft SQL Server instance with the `Pitch_Logic` database. Update `backend/dbConfig.js` with your connection details.
-
----
-
-## Platform Support
-
-| Platform | Status |
-|---|---|
-| Android | Supported |
-| iOS | Supported |
-| Web | Supported |
-
----
 
 *Built with React Native, Express, and an unhealthy obsession with football.*

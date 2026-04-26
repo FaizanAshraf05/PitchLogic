@@ -17,6 +17,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Colors, Typography, Spacing, BorderRadius } from '../theme';
+import { API_BASE } from '../api/config';
 
 const { width, height } = Dimensions.get('window');
 
@@ -47,7 +48,6 @@ export function TransferScreen() {
 
   const fetchMarketPlayers = async () => {
     try {
-      const API_BASE = 'https://obliged-preamble-amplifier.ngrok-free.dev/api';
       const managerName = route.params?.managerName || navigation.getState()?.routes.find((r: any) => r.name === 'Main')?.params?.managerName || 'default';
       const response = await fetch(`${API_BASE}/transfers/market/all`, {
         headers: { 'x-manager-name': managerName }
@@ -81,7 +81,6 @@ export function TransferScreen() {
 
     try {
       setSubmitting(true);
-      const API_BASE = 'https://obliged-preamble-amplifier.ngrok-free.dev/api';
       const managerName = route.params?.managerName || navigation.getState()?.routes.find((r: any) => r.name === 'Main')?.params?.managerName || 'default';
       const response = await fetch(`${API_BASE}/transfers/buy`, {
         method: 'POST',

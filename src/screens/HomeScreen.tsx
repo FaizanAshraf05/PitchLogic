@@ -21,7 +21,7 @@ import { Colors, Spacing, Typography, BorderRadius } from '../theme';
 
 const { width, height } = Dimensions.get('window');
 
-const API_BASE = 'https://obliged-preamble-amplifier.ngrok-free.dev/api';
+import { API_BASE } from '../api/config';
 
 const TEAM_LOGOS: Record<string, any> = {
   'Arsenal': require('../../assets/teams/arsenal.png'),

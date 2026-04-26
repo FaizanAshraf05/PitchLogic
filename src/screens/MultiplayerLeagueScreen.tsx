@@ -15,7 +15,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import { Colors, Typography, Spacing } from '../theme';
 
-const API_BASE = 'https://obliged-preamble-amplifier.ngrok-free.dev/api';
+import { API_BASE } from '../api/config';
 
 interface MPPlayer {
   managerName: string;
