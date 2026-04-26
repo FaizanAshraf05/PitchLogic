@@ -14,10 +14,10 @@ const poolPromise = sql.connect(config)
     })
     .catch(err => console.log('Database Connection Failed! Bad Config: ', err));
 
-// Global In-Memory Game States (Multi-user support)
+// Global In-Memory Game States
 const gameSessions = new Map();
 
-// Multiplayer leagues
+// Multiplayer
 const multiplayerLeagues = new Map();
 
 async function calcTeamOVR(teamId) {
@@ -37,7 +37,7 @@ function generateLeagueCode() {
     return code;
 }
 
-// Middleware to attach the correct game state to the request
+// correct game state to the request
 app.use((req, res, next) => {
     const managerName = (req.query && req.query.manager) || (req.body && req.body.managerName) || (req.headers && req.headers['x-manager-name']) || 'default';
     if (!gameSessions.has(managerName)) {
@@ -58,7 +58,6 @@ app.use((req, res, next) => {
     next();
 });
 
-// HELPER FUNCTION: Get Team by ID
 const getTeam = (gameState, id) => gameState.teams.find(t => t.teamID == id);
 
 // Get Teams
@@ -153,7 +152,6 @@ app.put('/api/teams/:id/lineup', async (req, res) => {
         const safeBench = Array.isArray(bench) ? bench.map(id => parseInt(id)).filter(id => !isNaN(id)) : [];
         const safeReserves = Array.isArray(reserves) ? reserves.map(id => parseInt(id)).filter(id => !isNaN(id)) : [];
 
-        // Block injured players from being starters
         const injuredStarter = req.gameState.players.find(p =>
             safeStarters.includes(p.playerID) && p.injuredWeeksRemaining && p.injuredWeeksRemaining > 0
         );
@@ -208,7 +206,7 @@ app.put('/api/teams/:id/tactics', async (req, res) => {
     } catch (err) { res.status(500).send("Server Error"); }
 });
 
-// UC-04 — Training: Focus on a position. After 3 matches the boost is applied.
+// UC-04
 app.put('/api/teams/:id/training', async (req, res) => {
     try {
         const teamId = parseInt(req.params.id);
@@ -221,14 +219,13 @@ app.put('/api/teams/:id/training', async (req, res) => {
         const team = getTeam(req.gameState, teamId);
         if (!team) return res.status(404).json({ message: "Team not found." });
 
-        // Check if there's already an active training programme
+        // Check if there's already an active
         if (team.trainingProgramme && team.trainingProgramme.matchesRemaining > 0) {
             return res.status(400).json({
                 message: `Training already in progress for ${team.trainingProgramme.position}. ${team.trainingProgramme.matchesRemaining} match(es) remaining.`
             });
         }
 
-        // Set a new training programme
         team.trainingProgramme = {
             position: position,
             matchesRemaining: 3,
@@ -242,7 +239,6 @@ app.put('/api/teams/:id/training', async (req, res) => {
     } catch (err) { res.status(500).send("Server Error"); }
 });
 
-// Get current training status
 app.get('/api/teams/:id/training', async (req, res) => {
     try {
         const teamId = parseInt(req.params.id);
@@ -274,7 +270,6 @@ app.post('/api/teams/:id/facilities/upgrade', async (req, res) => {
             return res.status(400).json({ message: "Facility is already at maximum level." });
         }
 
-        // Cost: 1M at level 70, up to 10M at level 100. Exponential scaling.
         const cost = Math.floor(1000000 * Math.pow(10, (currentLevel - 70) / 30));
 
         if (team.transferBudget < cost) {
@@ -379,7 +374,6 @@ app.post('/api/matches/simulate', async (req, res) => {
             homeTeam.points = (homeTeam.points || 0) + 3;
             homeTeam.goalDifference = (homeTeam.goalDifference || 0) + diff;
             awayTeam.goalDifference = (awayTeam.goalDifference || 0) - diff;
-            // win bonus: 2.5M
             homeTeam.transferBudget += 2500000;
         } else if (awayGoals > homeGoals) {
             const diff = awayGoals - homeGoals;
@@ -389,7 +383,6 @@ app.post('/api/matches/simulate', async (req, res) => {
             awayTeam.points = (awayTeam.points || 0) + 3;
             awayTeam.goalDifference = (awayTeam.goalDifference || 0) + diff;
             homeTeam.goalDifference = (homeTeam.goalDifference || 0) - diff;
-            // win bonus: 2.5M
             awayTeam.transferBudget += 2500000;
         } else {
             homeTeam.draws = (homeTeam.draws || 0) + 1;
@@ -399,13 +392,11 @@ app.post('/api/matches/simulate', async (req, res) => {
             awayTeam.points = (awayTeam.points || 0) + 1;
         }
 
-        // Process training programmes for both teams involved
         [homeTeam, awayTeam].forEach(team => {
             if (team.trainingProgramme && team.trainingProgramme.matchesRemaining > 0) {
                 team.trainingProgramme.matchesRemaining -= 1;
 
                 if (team.trainingProgramme.matchesRemaining <= 0) {
-                    // Apply the +2 boost to all players in that position
                     const targetPos = team.trainingProgramme.position;
                     req.gameState.players.forEach(p => {
                         if (p.teamID === team.teamID && p.position && p.position.includes(targetPos)) {
@@ -413,12 +404,12 @@ app.post('/api/matches/simulate', async (req, res) => {
                         }
                     });
                     console.log(`Training complete for ${team.name}: +2 to all ${targetPos} players.`);
-                    team.trainingProgramme = null; // Clear the programme
+                    team.trainingProgramme = null; // Clear
                 }
             }
         });
 
-        // Fatigue & Injury system (player's team only)
+        // Fatigue & Injury system
         const playerTeamId = req.gameState.playerTeamId;
         let fatigueInfo = { newFatigued: [], injuries: [] };
 
@@ -426,12 +417,12 @@ app.post('/api/matches/simulate', async (req, res) => {
             const teamPlayers = req.gameState.players.filter(p => p.teamID === playerTeamId);
             const currentStarters = teamPlayers.filter(p => p.squadRole === 'Starter');
 
-            // 1. Check if previously fatigued starters are still in the XI → injury roll
+            // 1. Check if fatigued starters are still
             const fatiguedStarters = currentStarters.filter(p => p.isFatigued);
             fatiguedStarters.forEach(p => {
-                const injuryChance = 0.60 + (Math.random() * 0.10); // 60-70%
+                const injuryChance = 0.60 + (Math.random() * 0.10); // 60-70
                 if (Math.random() < injuryChance) {
-                    const weeks = Math.floor(Math.random() * 5) + 2; // 2-6 weeks
+                    const weeks = Math.floor(Math.random() * 5) + 2;
                     const vacatedIndex = p.squadPositionIndex;
                     p.injuredWeeksRemaining = weeks;
                     p.squadRole = 'Reserve';
@@ -440,7 +431,6 @@ app.post('/api/matches/simulate', async (req, res) => {
                     fatigueInfo.injuries.push({ name: p.name, position: p.position, weeks });
                     console.log(`INJURY: ${p.name} injured for ${weeks} weeks.`);
 
-                    // Auto-promote best bench player into the vacated starter slot
                     const benchPlayers = teamPlayers.filter(bp => bp.squadRole === 'Bench' && !bp.injuredWeeksRemaining);
                     if (benchPlayers.length > 0) {
                         benchPlayers.sort((a, b) => b.overallRating - a.overallRating);
@@ -451,8 +441,6 @@ app.post('/api/matches/simulate', async (req, res) => {
                     }
                 }
             });
-
-            // 2. Decrement injury counters for all team players
             teamPlayers.forEach(p => {
                 if (p.injuredWeeksRemaining && p.injuredWeeksRemaining > 0) {
                     p.injuredWeeksRemaining -= 1;
@@ -463,14 +451,13 @@ app.post('/api/matches/simulate', async (req, res) => {
                 }
             });
 
-            // 3. Clear all previous fatigue
             teamPlayers.forEach(p => { p.isFatigued = false; });
 
-            // 4. Pick 1-2 new random fatigued starters (excluding injured)
+            //Pick new random fatigued starters 
             const healthyStarters = req.gameState.players.filter(
                 p => p.teamID === playerTeamId && p.squadRole === 'Starter' && !p.injuredWeeksRemaining
             );
-            const fatigueCount = Math.random() < 0.35 ? 2 : 1; // 35% chance of 2
+            const fatigueCount = Math.random() < 0.35 ? 2 : 1;
             const shuffled = [...healthyStarters].sort(() => 0.5 - Math.random());
             const toFatigue = shuffled.slice(0, Math.min(fatigueCount, shuffled.length));
             toFatigue.forEach(p => {
@@ -493,7 +480,6 @@ app.post('/api/matches/simulate', async (req, res) => {
     } catch (err) { res.status(500).send(err.message); }
 });
 
-// Get fatigue & injury status for a team
 app.get('/api/teams/:id/fatigue-status', async (req, res) => {
     try {
         const teamId = parseInt(req.params.id);
@@ -511,7 +497,7 @@ app.get('/api/teams/:id/fatigue-status', async (req, res) => {
     } catch (err) { res.status(500).send("Server Error"); }
 });
 
-// Simulate ai matches in the same game-week
+// Simulate ai matches 
 app.post('/api/matches/simulate-week', async (req, res) => {
     try {
         const { matchDate, excludeMatchId } = req.body;
@@ -528,7 +514,7 @@ app.post('/api/matches/simulate-week', async (req, res) => {
             const awayTeam = getTeam(req.gameState, fixture.awayTeamID);
             if (!homeTeam || !awayTeam) return;
 
-            // Calculate OVR for each team from their best 11
+            // Calculate OVR for each team
             const getTeamOVR = (team) => {
                 const teamPlayers = req.gameState.players.filter(p => p.teamID === team.teamID);
                 const top11 = teamPlayers.sort((a, b) => b.overallRating - a.overallRating).slice(0, 11);
@@ -541,7 +527,7 @@ app.post('/api/matches/simulate-week', async (req, res) => {
             const totalOVR = homeOVR + awayOVR;
             const homeProb = totalOVR > 0 ? homeOVR / totalOVR : 0.5;
 
-            // Same scoring algorithm as the frontend uses for the player's match
+            // Same scoring algorithm as the frontend
             let homeGoals = 0;
             let awayGoals = 0;
             for (let i = 0; i < 5; i++) {
@@ -554,7 +540,7 @@ app.post('/api/matches/simulate-week', async (req, res) => {
             fixture.homeScore = homeGoals;
             fixture.awayScore = awayGoals;
 
-            // Update standings
+            // Update
             homeTeam.matchesPlayed = (homeTeam.matchesPlayed || 0) + 1;
             awayTeam.matchesPlayed = (awayTeam.matchesPlayed || 0) + 1;
             homeTeam.goalsFor = (homeTeam.goalsFor || 0) + homeGoals;
@@ -562,7 +548,6 @@ app.post('/api/matches/simulate-week', async (req, res) => {
             homeTeam.goalsAgainst = (homeTeam.goalsAgainst || 0) + awayGoals;
             awayTeam.goalsAgainst = (awayTeam.goalsAgainst || 0) + homeGoals;
 
-            // Budget: +5M per team for playing
             homeTeam.transferBudget = (homeTeam.transferBudget || 0) + 5000000;
             awayTeam.transferBudget = (awayTeam.transferBudget || 0) + 5000000;
 
@@ -573,7 +558,7 @@ app.post('/api/matches/simulate-week', async (req, res) => {
                 homeTeam.points = (homeTeam.points || 0) + 3;
                 homeTeam.goalDifference = (homeTeam.goalDifference || 0) + diff;
                 awayTeam.goalDifference = (awayTeam.goalDifference || 0) - diff;
-                // +2.5M win bonus
+
                 homeTeam.transferBudget += 2500000;
             } else if (awayGoals > homeGoals) {
                 const diff = awayGoals - homeGoals;
@@ -582,7 +567,7 @@ app.post('/api/matches/simulate-week', async (req, res) => {
                 awayTeam.points = (awayTeam.points || 0) + 3;
                 awayTeam.goalDifference = (awayTeam.goalDifference || 0) + diff;
                 homeTeam.goalDifference = (homeTeam.goalDifference || 0) - diff;
-                // +2.5M win bonus
+
                 awayTeam.transferBudget += 2500000;
             } else {
                 homeTeam.draws = (homeTeam.draws || 0) + 1;
@@ -590,8 +575,6 @@ app.post('/api/matches/simulate-week', async (req, res) => {
                 homeTeam.points = (homeTeam.points || 0) + 1;
                 awayTeam.points = (awayTeam.points || 0) + 1;
             }
-
-            // Process training for AI teams
             [homeTeam, awayTeam].forEach(team => {
                 if (team.trainingProgramme && team.trainingProgramme.matchesRemaining > 0) {
                     team.trainingProgramme.matchesRemaining -= 1;
@@ -616,10 +599,10 @@ app.post('/api/matches/simulate-week', async (req, res) => {
             });
         });
 
-        // Increment week number
+        // Increment week
         req.gameState.weekNumber = (req.gameState.weekNumber || 0) + 1;
 
-        // Every 4 weeks, trigger AI transfer activity
+        // Every 4 weeks, trigger AI transfer
         let transferActivity = false;
         let aiTransferSummary = [];
         if (req.gameState.weekNumber % 4 === 0) {
@@ -637,29 +620,26 @@ app.post('/api/matches/simulate-week', async (req, res) => {
     } catch (err) { res.status(500).send(err.message); }
 });
 
-// AI Transfer Engine — runs every 4 weeks
+// AI Transfer Engine
 function runAITransfers(gameState) {
     const playerTeamId = gameState.playerTeamId;
     const aiTeams = gameState.teams.filter(t => t.teamID !== playerTeamId);
     const summary = [];
 
-    // 1. AI bids on the player's team's players
+    //AI bids on the player
     const playerTeamPlayers = gameState.players.filter(p => p.teamID === playerTeamId);
     aiTeams.forEach(aiTeam => {
-        // ~30% chance each AI team bids for one of the player's players
+        // 30 chance each AI team bids
         if (Math.random() > 0.30 || playerTeamPlayers.length === 0) return;
 
-        // Pick a random player from the human team
+        // Pick a random player from the team
         const target = playerTeamPlayers[Math.floor(Math.random() * playerTeamPlayers.length)];
 
-        // Varied bid: 0.7x to 1.5x market value (sometimes conservative, sometimes high)
         const bidMultiplier = 0.7 + (Math.random() * 0.8);
         const offerAmount = Math.floor((target.marketValue || 1000000) * bidMultiplier);
 
-        // Don't bid if the AI team can't afford it
         if ((aiTeam.transferBudget || 0) < offerAmount) return;
 
-        // Check if there's already a pending offer for this player from this team
         const existing = gameState.incomingOffers.find(
             o => o.fromTeamID === aiTeam.teamID && o.targetPlayerID === target.playerID && o.status === 'pending'
         );
@@ -678,22 +658,20 @@ function runAITransfers(gameState) {
         });
     });
 
-    // 2. AI-to-AI transfers
+    //AI-to-AI
     aiTeams.forEach(buyer => {
-        // Each AI team has a small chance to buy from another AI team
+        // Each AI team has a small chance to buy from another AI 
         if (Math.random() > 0.20) return;
-
-        // Calculate buyer's average squad OVR
         const buyerPlayers = gameState.players.filter(p => p.teamID === buyer.teamID);
         const buyerAvgOVR = buyerPlayers.length > 0
             ? buyerPlayers.reduce((s, p) => s + p.overallRating, 0) / buyerPlayers.length
             : 50;
 
-        // Look at all other AI teams' players
+        // Look at all other AI teams
         const otherAITeams = aiTeams.filter(t => t.teamID !== buyer.teamID);
         for (const seller of otherAITeams) {
             const sellerPlayers = gameState.players.filter(p => p.teamID === seller.teamID);
-            if (sellerPlayers.length <= 11) continue; // Don't buy if seller would be too thin
+            if (sellerPlayers.length <= 11) continue;
 
             // Find a player better than the buyer's average
             const candidates = sellerPlayers.filter(p => p.overallRating > buyerAvgOVR);
@@ -703,7 +681,7 @@ function runAITransfers(gameState) {
             const price = target.marketValue || 1000000;
 
             if ((buyer.transferBudget || 0) < price) continue;
-            if (Math.random() > 0.15) continue; // Only 15% chance per candidate
+            if (Math.random() > 0.15) continue;
 
             // Execute the transfer
             buyer.transferBudget -= price;
@@ -712,14 +690,13 @@ function runAITransfers(gameState) {
             target.squadRole = 'Reserve';
 
             summary.push(`${buyer.name} signed ${target.name} from ${seller.name} for $${(price / 1000000).toFixed(1)}M`);
-            break; // Only one transfer per buyer per window
+            break;
         }
     });
 
     return summary;
 }
 
-// UC-1 — Trigger AI transfers manually
 app.post('/api/transfers/ai-process', async (req, res) => {
     try {
         const summary = runAITransfers(req.gameState);
@@ -732,7 +709,7 @@ app.post('/api/transfers/ai-process', async (req, res) => {
     } catch (err) { res.status(500).send("Server Error"); }
 });
 
-// Get incoming transfer offers for the player's team
+// Get incoming transfer offers for the players team
 app.get('/api/transfers/inbox', async (req, res) => {
     try {
         const pending = req.gameState.incomingOffers.filter(o => o.status === 'pending');
@@ -740,7 +717,7 @@ app.get('/api/transfers/inbox', async (req, res) => {
     } catch (err) { res.status(500).send("Server Error"); }
 });
 
-// Respond to an incoming offer: accept, reject, or counter
+// accept, reject, or counter
 app.post('/api/transfers/inbox/respond', async (req, res) => {
     try {
         const { offerId, action, counterAmount } = req.body;
@@ -782,11 +759,9 @@ app.post('/api/transfers/inbox/respond', async (req, res) => {
                 return res.status(400).json({ message: "Invalid counter amount." });
             }
 
-            // AI decides instantly: accept if counter <= 1.5x market value AND they can afford it
             const marketVal = player.marketValue || 1000000;
             const maxAcceptable = marketVal * 1.5;
             const canAfford = (buyerTeam.transferBudget || 0) >= counterAmount;
-            // Add some randomness: 70% chance to accept if within range, 30% even if slightly above
             const withinRange = counterAmount <= maxAcceptable;
             const willAccept = canAfford && (withinRange || Math.random() < 0.3);
 
@@ -1044,7 +1019,7 @@ app.post('/api/game/new', async (req, res) => {
     }
 });
 
-// Get full game state for device-side saving
+// Get full game state for saving
 app.get('/api/game/state', async (req, res) => {
     try {
         if (!req.gameState.active) {
@@ -1054,7 +1029,7 @@ app.get('/api/game/state', async (req, res) => {
     } catch (err) { res.status(500).send("Server Error"); }
 });
 
-// Restore game state from device-saved data
+// Restore game state
 app.post('/api/game/load', async (req, res) => {
     try {
         const savedState = req.body.gameState;
@@ -1092,7 +1067,6 @@ app.post('/api/game/load', async (req, res) => {
     }
 });
 
-// ─── MULTIPLAYER ENDPOINTS ────────────────────────────────────────────────────
 
 app.post('/api/mp/league/create', async (req, res) => {
     try {
@@ -1158,7 +1132,6 @@ function finalizeExpiredAuctions(league) {
             winner.budget -= topBid.amount;
             auction.winnerId = topBid.managerName;
             auction.winnerAmount = topBid.amount;
-            // Recalculate OVR: blend new player into a squad of 11
             if (winner.teamOVR) {
                 winner.teamOVR = Math.min(99, Math.round((winner.teamOVR * 11 + auction.playerOVR) / 12));
             }
