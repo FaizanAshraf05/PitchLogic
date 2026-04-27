@@ -41,7 +41,7 @@ const getGroup = (pos: string) => {
   for (const [group, positions] of Object.entries(POS_GROUPS)) {
     if (positions.includes(pos)) return group;
   }
-  return 'M'; // default fallback
+  return 'M'; // fallback
 };
 
 const getRatingDrop = (actualPos: string, playedPos: string) => {
@@ -51,14 +51,14 @@ const getRatingDrop = (actualPos: string, playedPos: string) => {
   const playedGroup = getGroup(playedPos);
   
   if (actualGroup === 'G' || playedGroup === 'G') {
-    return 40; // GK playing outfield, or outfield playing GK
+    return 40; // GK out of position
   }
   
   if (actualGroup === playedGroup) {
-    return 2; // e.g. ST playing LW
+    return 2; // same group
   }
   
-  // Adjacent groups (F <-> M, M <-> D)
+  // one group apart
   if ((actualGroup === 'F' && playedGroup === 'M') || 
       (actualGroup === 'M' && playedGroup === 'F') ||
       (actualGroup === 'M' && playedGroup === 'D') ||
@@ -66,7 +66,7 @@ const getRatingDrop = (actualPos: string, playedPos: string) => {
     return 5;
   }
   
-  // Far groups (F <-> D)
+  // opposite ends
   if ((actualGroup === 'F' && playedGroup === 'D') ||
       (actualGroup === 'D' && playedGroup === 'F')) {
     return 15;
@@ -141,7 +141,7 @@ export function SquadScreen() {
   const [subs, setSubs] = useState<Player[]>([]);
   const [reserves, setReserves] = useState<Player[]>([]);
 
-  // Selection State: { type: 'starter' | 'sub' | 'reserve', index: number }
+  // which slot is tapped
   const [selectedSlot, setSelectedSlot] = useState<{ type: string; index: number } | null>(null);
 
   const [selectedFormationKey, setSelectedFormationKey] = useState<keyof typeof FORMATIONS>('4-3-3 ATTACK');
@@ -188,7 +188,7 @@ export function SquadScreen() {
                   newStarters[p.squadPositionIndex] = p;
               }
           });
-          // Fill gaps if any
+          // fill empty slots
           dbStarters.forEach(p => {
               if (!newStarters.includes(p)) {
                   const emptyIdx = newStarters.findIndex(s => s === null);
@@ -196,7 +196,7 @@ export function SquadScreen() {
               }
           });
       } else {
-          // Fallback logic
+          // backup
           const unassigned: Player[] = [];
           dbStarters.forEach(p => {
             let placed = false;
@@ -267,7 +267,7 @@ export function SquadScreen() {
         return;
       }
 
-      // Calculate OVR for this specific lineup including position drops
+      // team rating with drops
       let currentOvr = 0;
       const validStarters = currentStarters.filter(p => p !== null) as Player[];
       if (validStarters.length > 0) {
@@ -310,12 +310,12 @@ export function SquadScreen() {
     }
 
     if (selectedSlot.type === type && selectedSlot.index === index) {
-      // Deselect if tapping the same slot
+      // tap again to deselect
       setSelectedSlot(null);
       return;
     }
 
-    // Perform Swap
+    // swap the two
     const newStarters = [...starters];
     const newSubs = [...subs];
     const newReserves = [...reserves];
@@ -333,30 +333,27 @@ export function SquadScreen() {
       if (t === 'reserve' && p) newReserves[i] = p;
     };
 
-    // Block injured player from being placed as starter
+    // no injured starters
     const player1 = getPlayer(selectedSlot.type, selectedSlot.index);
     const player2 = getPlayer(type, index);
 
-    // If swapping an injured player INTO the starting XI, block it
     if (type === 'starter' && player1 && injuredIds.includes(player1.playerID)) {
       Alert.alert('Injured', `${player1.name} is injured for ${injuredPlayers.find(p => p.playerID === player1.playerID)?.weeksRemaining} more week(s) and cannot start.`);
       setSelectedSlot(null);
       return;
     }
     if (selectedSlot.type === 'starter' && player2 && injuredIds.includes(player2.playerID)) {
-      // Moving an injured player from bench/reserve into starter slot via swap target - this is actually fine
-      // because the injured player would be moving OUT. But if the selected slot is a non-starter and target is starter:
+      // moving out, fine
     }
-    // If a non-starter injured player is being moved to starter position
     if (type === 'starter' && selectedSlot.type !== 'starter' && player1 && injuredIds.includes(player1.playerID)) {
       Alert.alert('Injured', `${player1.name} is injured and cannot start.`);
       setSelectedSlot(null);
       return;
     }
     if (selectedSlot.type === 'starter' && type !== 'starter') {
-      // Moving starter out to bench/reserve - always ok
+      // starter to bench, fine
     }
-    // Block: bench/reserve injured player being swapped to starter
+    // bench injured → starter blocked
     if (selectedSlot.type !== 'starter' && type === 'starter') {
       if (player1 && injuredIds.includes(player1.playerID)) {
         Alert.alert('Injured', `${player1.name} is injured and cannot start.`);
@@ -380,7 +377,7 @@ export function SquadScreen() {
     setReserves(newReserves);
     setSelectedSlot(null);
 
-    // If a starter was modified, save to DB
+    // lineup changed, save
     if (selectedSlot.type === 'starter' || type === 'starter' || selectedSlot.type === 'sub' || type === 'sub') {
       saveLineup(newStarters, newSubs, newReserves);
     }
@@ -636,7 +633,7 @@ const styles = StyleSheet.create({
   pitchContainer: {
     width: '100%',
     aspectRatio: 0.7,
-    backgroundColor: '#2D8B4E', // Pitch green
+    backgroundColor: '#2D8B4E', // pitch green
     borderRadius: 30,
     overflow: 'hidden',
     marginBottom: 20,
@@ -743,7 +740,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     marginTop: -8,
     zIndex: -1,
-    paddingTop: 8, // extra padding to hide behind circle
+    paddingTop: 8, // hide behind circle
   },
   posPillText: {
     color: '#FFF',

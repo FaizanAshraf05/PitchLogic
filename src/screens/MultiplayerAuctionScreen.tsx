@@ -89,7 +89,7 @@ export function MultiplayerAuctionScreen() {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const prevSignedCount = useRef(0);
 
-  // ── Fetch free agents (re-fetch when signed list grows) ─────────────────────
+  // fetch free agents
   const fetchFreeAgents = useCallback(async () => {
     try {
       const res = await fetch(`${API_BASE}/mp/league/${code}/free-agents`);
@@ -100,7 +100,7 @@ export function MultiplayerAuctionScreen() {
     finally { setLoadingAgents(false); }
   }, [code]);
 
-  // ── Poll league state every 2s ───────────────────────────────────────────────
+  // poll every 2s
   const fetchLeague = useCallback(async () => {
     try {
       const res = await fetch(`${API_BASE}/mp/league/${code}`);
@@ -108,7 +108,7 @@ export function MultiplayerAuctionScreen() {
       const data: League = await res.json();
       setLeague(data);
 
-      // Re-fetch free agents when a new player gets signed
+      // refresh on new signing
       if (data.signedPlayers.length > prevSignedCount.current) {
         prevSignedCount.current = data.signedPlayers.length;
         fetchFreeAgents();
@@ -129,7 +129,7 @@ export function MultiplayerAuctionScreen() {
     }, [fetchLeague, fetchFreeAgents])
   );
 
-  // ── Countdown timer driven by activeAuction.endTime ─────────────────────────
+  // auction countdown
   const activeAuction = league?.auctions.find(a => a.status === 'active') ?? null;
 
   useEffect(() => {
@@ -142,7 +142,7 @@ export function MultiplayerAuctionScreen() {
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, [activeAuction?.auctionId, activeAuction?.endTime]);
 
-  // ── Derived data ─────────────────────────────────────────────────────────────
+  // derived state
   const myEntry = league?.players.find(p => p.managerName === managerName);
   const myBudget = myEntry?.budget ?? 0;
 
@@ -155,7 +155,7 @@ export function MultiplayerAuctionScreen() {
     .slice(-3)
     .reverse() ?? [];
 
-  // ── Actions ──────────────────────────────────────────────────────────────────
+  // actions
   const handleStartAuction = async (agent: FreeAgent) => {
     Alert.alert(
       'Start Auction',
@@ -224,7 +224,7 @@ export function MultiplayerAuctionScreen() {
     }
   };
 
-  // ── Render ────────────────────────────────────────────────────────────────────
+  // render
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <StatusBar barStyle="light-content" />
@@ -417,7 +417,7 @@ const styles = StyleSheet.create({
   budgetValue: { fontSize: Typography.fontSize.sm, color: Colors.green, fontWeight: '800' },
   scroll: { paddingHorizontal: Spacing.lg },
 
-  // Active auction card
+  // active auction
   auctionCard: {
     backgroundColor: Colors.surface2,
     borderRadius: BorderRadius.xl,
@@ -498,7 +498,7 @@ const styles = StyleSheet.create({
   bidButtonText: { color: '#000', fontWeight: '900', fontSize: Typography.fontSize.base },
   bidHint: { fontSize: Typography.fontSize.xs, color: Colors.textMuted, textAlign: 'right' },
 
-  // Sections
+  // sections
   section: { marginBottom: Spacing.xl },
   sectionTitle: {
     fontSize: Typography.fontSize.sm,
@@ -510,7 +510,7 @@ const styles = StyleSheet.create({
   },
   emptyText: { color: Colors.textMuted, fontSize: Typography.fontSize.sm, textAlign: 'center', paddingVertical: Spacing.xl, fontStyle: 'italic' },
 
-  // Completed auctions
+  // past auctions
   completedRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -528,7 +528,7 @@ const styles = StyleSheet.create({
   completedAmount: { fontSize: Typography.fontSize.xs, color: Colors.textMuted },
   unsoldText: { fontSize: Typography.fontSize.sm, color: Colors.textMuted, fontStyle: 'italic' },
 
-  // Free agents list
+  // free agents
   agentRow: {
     flexDirection: 'row',
     alignItems: 'center',

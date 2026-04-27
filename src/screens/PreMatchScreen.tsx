@@ -103,10 +103,10 @@ export function PreMatchScreen() {
     if (!data) return;
     setSimulating(true);
     
-    // Simulate a semi-random score based on probability
+    // score based on ratings
     const homeProb = data.homeTeam.overallRating / (data.homeTeam.overallRating + data.awayTeam.overallRating);
     
-    // Quick random score algorithm favoring the higher probability team
+    // weighted random goals
     let homeGoals = 0;
     let awayGoals = 0;
     for(let i=0; i<5; i++) {
@@ -121,7 +121,7 @@ export function PreMatchScreen() {
         'x-manager-name': managerName
       };
 
-      // 1. Simulate the player's match
+      // player's match
       const res = await fetch(`${API_BASE}/matches/simulate`, {
         method: 'POST',
         headers,
@@ -137,7 +137,7 @@ export function PreMatchScreen() {
       const matchResult = await res.json();
       const fatigueInfo = matchResult.fatigueInfo || { newFatigued: [], injuries: [] };
 
-      // 2. Simulate all other matches this week
+      // rest of the week
       let otherResults: any[] = [];
       let transferActivity = false;
       let aiTransferSummary: string[] = [];
@@ -160,7 +160,7 @@ export function PreMatchScreen() {
         console.warn('Failed to simulate other week matches:', e);
       }
 
-      // 3. Build full results summary
+      // results summary
       let resultSummary = `${data.homeTeam.name} ${homeGoals} - ${awayGoals} ${data.awayTeam.name}`;
       if (otherResults.length > 0) {
         resultSummary += '\n\n— Other Results —';
@@ -169,7 +169,7 @@ export function PreMatchScreen() {
         });
       }
 
-      // Show AI transfer summary if window opened
+      // transfer activity
       if (transferActivity && aiTransferSummary.length > 0) {
         resultSummary += '\n\n— Transfer Activity —';
         aiTransferSummary.forEach((t: string) => {
@@ -177,7 +177,7 @@ export function PreMatchScreen() {
         });
       }
 
-      // Fatigue & Injury warnings
+      // fitness warnings
       if (fatigueInfo.injuries.length > 0) {
         resultSummary += '\n\n🚑 INJURIES';
         fatigueInfo.injuries.forEach((inj: any) => {

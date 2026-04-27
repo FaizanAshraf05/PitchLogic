@@ -56,9 +56,9 @@ export function HomeScreen() {
   const [showManagerStats, setShowManagerStats] = useState(false);
   const [teamStats, setTeamStats] = useState<{played: number; wins: number; draws: number; losses: number}>({played: 0, wins: 0, draws: 0, losses: 0});
 
-  // Get manager name and team ID directly from route params
+  // route params
   const managerName = route.params?.managerName || '[NAME]';
-  const teamId = route.params?.teamId || 10; // Fallback to Man City
+  const teamId = route.params?.teamId || 10; // default Man City
   const managerNameUpper = managerName.toUpperCase();
 
   const getGreeting = () => {
@@ -79,7 +79,7 @@ export function HomeScreen() {
     try {
       setLoading(true);
       const reqManagerName = route.params?.managerName || navigation.getState()?.routes.find((r: any) => r.name === 'Main')?.params?.managerName || 'default';
-      // Fetch all teams to get budget and map names
+      // teams + budget
       const teamsRes = await fetch(`${API_BASE}/teams`, {
         headers: { 'x-manager-name': reqManagerName }
       });
@@ -94,7 +94,7 @@ export function HomeScreen() {
         });
         setTeamsMap(map);
 
-        // Fetch team stats for manager bubble
+        // manager stats
         const statsRes = await fetch(`${API_BASE}/league/standings`, {
           headers: { 'x-manager-name': reqManagerName }
         });
@@ -112,7 +112,7 @@ export function HomeScreen() {
         }
       }
 
-      // Fetch next match
+      // next fixture
       const matchRes = await fetch(`${API_BASE}/teams/${teamId}/next-match`, {
         headers: { 'x-manager-name': reqManagerName }
       });
@@ -143,7 +143,7 @@ export function HomeScreen() {
       }
       const gameState = await res.json();
 
-      // Save to device local storage
+      // write to disk
       const saveData = JSON.stringify({
         managerName: reqManagerName,
         teamId,
@@ -207,11 +207,11 @@ export function HomeScreen() {
     const homeTeamName = teamsMap[nextMatch.homeTeamID] || 'Unknown Team';
     const awayTeamName = teamsMap[nextMatch.awayTeamID] || 'Unknown Team';
 
-    // Fallback if logo not found
+    // no logo fallback
     const homeLogo = TEAM_LOGOS[homeTeamName] || null;
     const awayLogo = TEAM_LOGOS[awayTeamName] || null;
 
-    // Date formatting (assuming YYYY-MM-DD or ISO format)
+    // format match date
     const matchDate = new Date(nextMatch.matchDate);
     const dateStr = isNaN(matchDate.getTime())
       ? nextMatch.matchDate
