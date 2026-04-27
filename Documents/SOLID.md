@@ -1,12 +1,9 @@
 # SOLID Principles in PitchLogic
 
----
-
 ## S Single Responsibility Principle
 Every module should have one reason to change.
 
-| File | Responsibility |
-|---|---|
+
 | `src/theme/colors.ts` | Defines the app colour palette only |
 | `src/theme/typography.ts` | Defines font sizes, weights, and families only |
 | `src/theme/spacing.ts` | Defines spacing, border radius, and shadow scales only |
@@ -20,8 +17,6 @@ Each of these files does one thing. If the colour palette changes, only `colors.
 ## O Open/Closed Principle
 Open for extension, closed for modification.
 
-| Location | How |
-|---|---|
 | `src/theme/` (all files) | New colours, font sizes, or spacing values can be added without touching any logic |
 | `src/store/gameStore.ts` | New state fields (e.g. a new game mode) can be added without breaking existing fields |
 | `src/api/client.ts` | New API endpoints can be added as new exported functions without changing existing ones |
@@ -40,20 +35,15 @@ Not directly applicable to this project. PitchLogic uses functional React compon
 ## I Interface Segregation Principle
 Clients should not depend on interfaces they don't use.
 
-| Location | How |
-|---|---|
 | `MultiplayerAuctionScreen.tsx` | Separate interfaces for `FreeAgent`, `Bid`, `Auction`, `AuctionLeaguePlayer` — each typed for its specific role |
 | `src/api/client.ts` | Separate exported types: `Team`, `SquadPlayer`, `MarketPlayer`, `Offer`, `Match`, `FatigueStatus`, `MpLeague`, `Auction`, etc. |
 
 Rather than one large `GameData` type passed everywhere, data is split into focused interfaces so each screen only depends on the shape it actually uses.
 
----
-
 ## D Dependency Inversion Principle
 High-level modules should not depend on low-level details.
 
-| Location | How |
-|---|---|
+
 | `src/api/config.ts` | All 15 screens import `API_BASE` from this single file instead of hardcoding the URL themselves |
 | `src/api/client.ts` | Provides a typed abstraction over raw `fetch` calls — screens can call `getTeams()` instead of constructing URLs and parsing responses manually |
 

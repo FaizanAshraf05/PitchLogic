@@ -1,18 +1,14 @@
-# Design Patterns in PitchLogic
-
-This document shows the main design patterns used in this project.
-
----
+# Design Patterns in PitchLogic---
 
 ## 1. Singleton Pattern
 
-Used in `src/store/gameStore.ts` with the Zustand store. The `useGameStore` hook is created once and shared across the entire app. Every screen that needs game state accesses the same single instance, so there is never more than one source of truth for the game data.
+ The `useGameStore` hook is created once and shared across the entire app. Every screen that needs game state accesses the same single instance, so there is never more than one source of truth for the game data.
 
 ---
 
 ## 2. Factory Pattern
 
-Used in `src/store/gameStore.ts` with the `createDefaultStats()` function. Instead of writing out the same default team stats object every time a new team is created, this function produces a fresh copy on demand. This keeps team initialisation consistent and in one place.
+Used in `src/store/gameStore.ts` with the `createDefaultStats()` function. Instead of writing out the same default team stats object every time a new team is created, this function produces a fresh copy on demand.
 
 ---
 
